@@ -54,7 +54,8 @@ export default class DungeonScene extends Phaser.Scene {
      */
 
     if (!this.textures.exists("player")) {
-      const playerGraphics = this.add.graphics();
+      const playerGraphics =
+        this.add.graphics();
 
       playerGraphics.fillStyle(
         0xd9a84e,
@@ -93,7 +94,8 @@ export default class DungeonScene extends Phaser.Scene {
      */
 
     if (!this.textures.exists("wall")) {
-      const wallGraphics = this.add.graphics();
+      const wallGraphics =
+        this.add.graphics();
 
       wallGraphics.fillStyle(
         0x242e34,
@@ -439,7 +441,13 @@ export default class DungeonScene extends Phaser.Scene {
       10
     );
 
-    this.player.body.setSize(
+    /*
+     * Pakai method Sprite langsung.
+     * Jadi tidak mengakses player.body
+     * yang dianggap bisa null oleh TypeScript.
+     */
+
+    this.player.setBodySize(
       28,
       28
     );
@@ -451,16 +459,18 @@ export default class DungeonScene extends Phaser.Scene {
   }
 
   private createControls() {
-    if (!this.input.keyboard) {
+    const keyboard =
+      this.input.keyboard;
+
+    if (!keyboard) {
       return;
     }
 
     this.cursors =
-      this.input.keyboard
-        .createCursorKeys();
+      keyboard.createCursorKeys();
 
     this.wasd =
-      this.input.keyboard.addKeys({
+      keyboard.addKeys({
         W:
           Phaser.Input.Keyboard
             .KeyCodes.W,
@@ -503,10 +513,17 @@ export default class DungeonScene extends Phaser.Scene {
         24,
         "REALM QUEST",
         {
-          fontFamily: "Arial",
-          fontSize: "24px",
-          color: "#d9a84e",
-          fontStyle: "bold",
+          fontFamily:
+            "Arial",
+
+          fontSize:
+            "24px",
+
+          color:
+            "#d9a84e",
+
+          fontStyle:
+            "bold",
         }
       )
       .setScrollFactor(0)
@@ -518,9 +535,14 @@ export default class DungeonScene extends Phaser.Scene {
         58,
         "Explore the dungeon",
         {
-          fontFamily: "Arial",
-          fontSize: "14px",
-          color: "#9aa6ad",
+          fontFamily:
+            "Arial",
+
+          fontSize:
+            "14px",
+
+          color:
+            "#9aa6ad",
         }
       )
       .setScrollFactor(0)
