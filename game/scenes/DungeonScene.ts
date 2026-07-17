@@ -14,7 +14,6 @@ export default class DungeonScene extends Phaser.Scene {
   };
 
   private readonly playerSpeed = 260;
-
   private readonly worldWidth = 2400;
   private readonly worldHeight = 1600;
 
@@ -54,95 +53,93 @@ export default class DungeonScene extends Phaser.Scene {
      * PLAYER TEXTURE
      */
 
-    const playerGraphics = this.make.graphics({
-      x: 0,
-      y: 0,
-    });
+    if (!this.textures.exists("player")) {
+      const playerGraphics = this.add.graphics();
 
-    playerGraphics.fillStyle(
-      0xd9a84e,
-      1
-    );
+      playerGraphics.fillStyle(
+        0xd9a84e,
+        1
+      );
 
-    playerGraphics.fillCircle(
-      18,
-      18,
-      15
-    );
+      playerGraphics.fillCircle(
+        18,
+        18,
+        15
+      );
 
-    playerGraphics.lineStyle(
-      3,
-      0xf5dfaa,
-      1
-    );
+      playerGraphics.lineStyle(
+        3,
+        0xf5dfaa,
+        1
+      );
 
-    playerGraphics.strokeCircle(
-      18,
-      18,
-      15
-    );
+      playerGraphics.strokeCircle(
+        18,
+        18,
+        15
+      );
 
-    playerGraphics.generateTexture(
-      "player",
-      36,
-      36
-    );
+      playerGraphics.generateTexture(
+        "player",
+        36,
+        36
+      );
 
-    playerGraphics.destroy();
+      playerGraphics.destroy();
+    }
 
     /*
      * WALL TEXTURE
      */
 
-    const wallGraphics = this.make.graphics({
-      x: 0,
-      y: 0,
-    });
+    if (!this.textures.exists("wall")) {
+      const wallGraphics = this.add.graphics();
 
-    wallGraphics.fillStyle(
-      0x242e34,
-      1
-    );
+      wallGraphics.fillStyle(
+        0x242e34,
+        1
+      );
 
-    wallGraphics.fillRect(
-      0,
-      0,
-      64,
-      64
-    );
+      wallGraphics.fillRect(
+        0,
+        0,
+        64,
+        64
+      );
 
-    wallGraphics.fillStyle(
-      0x313d44,
-      1
-    );
+      wallGraphics.fillStyle(
+        0x313d44,
+        1
+      );
 
-    wallGraphics.fillRect(
-      4,
-      4,
-      56,
-      12
-    );
+      wallGraphics.fillRect(
+        4,
+        4,
+        56,
+        12
+      );
 
-    wallGraphics.lineStyle(
-      2,
-      0x11181c,
-      1
-    );
+      wallGraphics.lineStyle(
+        2,
+        0x11181c,
+        1
+      );
 
-    wallGraphics.strokeRect(
-      1,
-      1,
-      62,
-      62
-    );
+      wallGraphics.strokeRect(
+        1,
+        1,
+        62,
+        62
+      );
 
-    wallGraphics.generateTexture(
-      "wall",
-      64,
-      64
-    );
+      wallGraphics.generateTexture(
+        "wall",
+        64,
+        64
+      );
 
-    wallGraphics.destroy();
+      wallGraphics.destroy();
+    }
   }
 
   private createDungeon() {
@@ -297,17 +294,18 @@ export default class DungeonScene extends Phaser.Scene {
         x < this.worldWidth;
         x += tileSize
       ) {
+        const column =
+          Math.floor(
+            x / tileSize
+          );
+
+        const row =
+          Math.floor(
+            y / tileSize
+          );
+
         const alternateTile =
-          (
-            Math.floor(
-              x / tileSize
-            ) +
-            Math.floor(
-              y / tileSize
-            )
-          ) %
-            2 ===
-          0;
+          (column + row) % 2 === 0;
 
         graphics.fillStyle(
           alternateTile
@@ -407,9 +405,7 @@ export default class DungeonScene extends Phaser.Scene {
       },
 
       duration: 800,
-
       yoyo: true,
-
       repeat: -1,
     });
 
@@ -422,9 +418,7 @@ export default class DungeonScene extends Phaser.Scene {
       },
 
       duration: 400,
-
       yoyo: true,
-
       repeat: -1,
     });
   }
@@ -457,12 +451,16 @@ export default class DungeonScene extends Phaser.Scene {
   }
 
   private createControls() {
+    if (!this.input.keyboard) {
+      return;
+    }
+
     this.cursors =
-      this.input.keyboard!
+      this.input.keyboard
         .createCursorKeys();
 
     this.wasd =
-      this.input.keyboard!.addKeys({
+      this.input.keyboard.addKeys({
         W:
           Phaser.Input.Keyboard
             .KeyCodes.W,
@@ -506,11 +504,8 @@ export default class DungeonScene extends Phaser.Scene {
         "REALM QUEST",
         {
           fontFamily: "Arial",
-
           fontSize: "24px",
-
           color: "#d9a84e",
-
           fontStyle: "bold",
         }
       )
@@ -524,9 +519,7 @@ export default class DungeonScene extends Phaser.Scene {
         "Explore the dungeon",
         {
           fontFamily: "Arial",
-
           fontSize: "14px",
-
           color: "#9aa6ad",
         }
       )
@@ -535,7 +528,11 @@ export default class DungeonScene extends Phaser.Scene {
   }
 
   private handlePlayerMovement() {
-    if (!this.player) {
+    if (
+      !this.player ||
+      !this.cursors ||
+      !this.wasd
+    ) {
       return;
     }
 
@@ -577,8 +574,7 @@ export default class DungeonScene extends Phaser.Scene {
       );
 
     if (
-      direction.length() >
-      0
+      direction.length() > 0
     ) {
       direction.normalize();
 
