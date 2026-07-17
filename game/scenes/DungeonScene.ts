@@ -1610,9 +1610,6 @@ export default class DungeonScene extends Phaser.Scene {
 
     /*
      * Roll loot.
-     *
-     * LootSystem sendiri yang menentukan
-     * apakah item drop atau tidak.
      */
 
     this.lootSystem.dropLoot(
@@ -1633,12 +1630,29 @@ export default class DungeonScene extends Phaser.Scene {
     loot: LootSprite
   ) {
     /*
-     * Cegah overlap callback
-     * terpanggil dua kali.
+     * Cegah callback setelah loot
+     * sudah dihancurkan.
      */
 
     if (
       !loot.active
+    ) {
+      return;
+    }
+
+    /*
+     * FIX:
+     *
+     * Loot yang baru jatuh belum
+     * boleh langsung diambil.
+     *
+     * LootSystem akan mengubah
+     * canPickup menjadi true
+     * setelah pickup delay selesai.
+     */
+
+    if (
+      !loot.canPickup
     ) {
       return;
     }
@@ -1655,17 +1669,24 @@ export default class DungeonScene extends Phaser.Scene {
     }
 
     /*
-     * Tambah counter sementara.
+     * Langsung nonaktifkan pickup.
      *
-     * Next nanti kita ganti dengan
-     * inventory sungguhan.
+     * Ini mencegah callback overlap
+     * mengambil item dua kali.
+     */
+
+    loot.canPickup =
+      false;
+
+    /*
+     * Tambah counter sementara.
      */
 
     this.collectedLoot +=
       1;
 
     /*
-     * Tampilkan nama item yang didapat.
+     * Tampilkan nama item.
      */
 
     this.showLootPickup(
@@ -1674,7 +1695,18 @@ export default class DungeonScene extends Phaser.Scene {
     );
 
     /*
-     * Hancurkan loot dari dunia.
+     * Loot punya tween floating
+     * yang berjalan terus.
+     *
+     * Matikan tween sebelum destroy.
+     */
+
+    this.tweens.killTweensOf(
+      loot
+    );
+
+    /*
+     * Hapus loot dari dunia.
      */
 
     loot.destroy();
