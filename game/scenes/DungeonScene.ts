@@ -1,19 +1,19 @@
 import * as Phaser from "phaser";
+
 import GridPathfinder, {
   GridPoint,
 } from "@/game/pathfinding/GridPathfinder";
 
-type EnemySprite =
-  Phaser.Physics.Arcade.Sprite & {
-    pathData?: GridPoint[];
-    pathIndex?: number;
-    nextPathUpdate?: number;
-  };
+import EnemyAI, {
+  EnemySprite,
+} from "@/game/enemies/EnemyAI";
 
 export default class DungeonScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
   private walls!: Phaser.Physics.Arcade.StaticGroup;
   private enemies!: Phaser.Physics.Arcade.Group;
+
+  private enemyAIs: EnemyAI[] = [];
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
 
@@ -34,7 +34,6 @@ export default class DungeonScene extends Phaser.Scene {
   private readonly maxPlayerHP = 100;
 
   private readonly playerSpeed = 260;
-  private readonly enemySpeed = 110;
 
   private readonly tileSize = 64;
 
@@ -117,7 +116,7 @@ export default class DungeonScene extends Phaser.Scene {
         enemyObject
       ) => {
         const enemy =
-          enemyObject as Phaser.Physics.Arcade.Sprite;
+          enemyObject as EnemySprite;
 
         this.damagePlayer(
           enemy
@@ -129,7 +128,7 @@ export default class DungeonScene extends Phaser.Scene {
   update(time: number) {
     this.handlePlayerMovement();
 
-    this.updateEnemies(
+    this.updateEnemyAI(
       time
     );
 
@@ -167,10 +166,6 @@ export default class DungeonScene extends Phaser.Scene {
             () => true
           )
       );
-
-    /*
-     * Batas map.
-     */
 
     for (
       let col = 0;
@@ -223,10 +218,10 @@ export default class DungeonScene extends Phaser.Scene {
     ][col] = false;
   }
 
-  private worldToGrid(
+  private worldToGrid = (
     x: number,
     y: number
-  ): GridPoint {
+  ): GridPoint => {
     return {
       col:
         Phaser.Math.Clamp(
@@ -248,11 +243,11 @@ export default class DungeonScene extends Phaser.Scene {
           this.rows - 1
         ),
     };
-  }
+  };
 
-  private gridToWorld(
+  private gridToWorld = (
     point: GridPoint
-  ) {
+  ) => {
     return {
       x:
         point.col *
@@ -266,7 +261,7 @@ export default class DungeonScene extends Phaser.Scene {
         this.tileSize /
           2,
     };
-  }
+  };
 
   /*
    * =========================================
@@ -275,6 +270,10 @@ export default class DungeonScene extends Phaser.Scene {
    */
 
   private createTextures() {
+    /*
+     * PLAYER
+     */
+
     if (
       !this.textures.exists(
         "player"
@@ -314,6 +313,10 @@ export default class DungeonScene extends Phaser.Scene {
 
       graphics.destroy();
     }
+
+    /*
+     * WALL
+     */
 
     if (
       !this.textures.exists(
@@ -368,6 +371,10 @@ export default class DungeonScene extends Phaser.Scene {
 
       graphics.destroy();
     }
+
+    /*
+     * ENEMY
+     */
 
     if (
       !this.textures.exists(
@@ -495,10 +502,6 @@ export default class DungeonScene extends Phaser.Scene {
 
     /*
      * INTERNAL WALLS
-     *
-     * Sekarang semua tembok dibuat
-     * berdasarkan grid supaya visual,
-     * collision, dan pathfinding sinkron.
      */
 
     this.createHorizontalWall(
@@ -548,6 +551,10 @@ export default class DungeonScene extends Phaser.Scene {
       18,
       5
     );
+
+    /*
+     * TORCHES
+     */
 
     this.createTorch(
       420,
@@ -818,6 +825,16 @@ export default class DungeonScene extends Phaser.Scene {
     this.enemies =
       this.physics.add.group();
 
+    this.enemyAIs =
+      [];
+
+    /*
+     * Posisi monster sengaja dibuat
+     * cukup berjauhan supaya player
+     * tidak langsung meng-aggro
+     * banyak monster sekaligus.
+     */
+
     const enemyPositions = [
       {
         x: 800,
@@ -825,8 +842,8 @@ export default class DungeonScene extends Phaser.Scene {
       },
 
       {
-        x: 950,
-        y: 800,
+        x: 1050,
+        y: 750,
       },
 
       {
@@ -836,7 +853,7 @@ export default class DungeonScene extends Phaser.Scene {
 
       {
         x: 2000,
-        y: 400,
+        y: 350,
       },
 
       {
@@ -845,7 +862,7 @@ export default class DungeonScene extends Phaser.Scene {
       },
 
       {
-        x: 1000,
+        x: 950,
         y: 1350,
       },
     ];
@@ -880,232 +897,89 @@ export default class DungeonScene extends Phaser.Scene {
           9
         );
 
-        enemy.pathData =
-          [];
+        /*
+         * Setiap monster punya
+         * instance AI sendiri.
+         */
 
-        enemy.pathIndex =
-          0;
+        const enemyAI =
+          new EnemyAI({
+            scene:
+              this,
+
+            enemy,
+
+            player:
+              this.player,
+
+            pathfinder:
+              this.pathfinder,
+
+            worldToGrid:
+              this.worldToGrid,
+
+            gridToWorld:
+              this.gridToWorld,
+
+            /*
+             * Kecepatan monster lebih lambat
+             * dari player supaya player
+             * masih bisa kabur.
+             */
+
+            speed:
+              105,
+
+            /*
+             * Monster baru sadar player
+             * kalau jaraknya <= 250px.
+             */
+
+            aggroRadius:
+              250,
+
+            /*
+             * Monster tidak boleh ditarik
+             * lebih dari 420px dari spawn.
+             */
+
+            leashRadius:
+              420,
+
+            returnDistance:
+              24,
+
+            pathUpdateInterval:
+              450,
+          });
 
         /*
-         * Bikin waktu update path berbeda
-         * supaya semua monster tidak
-         * menghitung A* di frame yang sama.
+         * Biar pathfinding monster tidak
+         * semuanya update bersamaan.
          */
 
         enemy.nextPathUpdate =
-          index * 80;
+          index *
+          80;
+
+        this.enemyAIs.push(
+          enemyAI
+        );
       }
     );
   }
 
-  private updateEnemies(
+  private updateEnemyAI(
     time: number
   ) {
-    if (
-      !this.enemies ||
-      !this.player ||
-      !this.pathfinder
+    for (
+      const enemyAI
+      of this.enemyAIs
     ) {
-      return;
+      enemyAI.update(
+        time
+      );
     }
-
-    this.enemies.children.each(
-      (child) => {
-        const enemy =
-          child as EnemySprite;
-
-        if (
-          !enemy.active
-        ) {
-          return true;
-        }
-
-        const distance =
-          Phaser.Math.Distance.Between(
-            enemy.x,
-            enemy.y,
-            this.player.x,
-            this.player.y
-          );
-
-        /*
-         * Di luar aggro range:
-         * monster diam.
-         */
-
-        if (
-          distance >
-          700
-        ) {
-          enemy.setVelocity(
-            0,
-            0
-          );
-
-          enemy.pathData =
-            [];
-
-          enemy.pathIndex =
-            0;
-
-          return true;
-        }
-
-        /*
-         * Hitung ulang path setiap
-         * kurang lebih 500ms.
-         */
-
-        if (
-          time >=
-          (
-            enemy.nextPathUpdate ??
-            0
-          )
-        ) {
-          this.calculateEnemyPath(
-            enemy
-          );
-
-          enemy.nextPathUpdate =
-            time +
-            450 +
-            Phaser.Math.Between(
-              0,
-              120
-            );
-        }
-
-        this.followEnemyPath(
-          enemy
-        );
-
-        return true;
-      }
-    );
-  }
-
-  private calculateEnemyPath(
-    enemy: EnemySprite
-  ) {
-    const start =
-      this.worldToGrid(
-        enemy.x,
-        enemy.y
-      );
-
-    const target =
-      this.worldToGrid(
-        this.player.x,
-        this.player.y
-      );
-
-    const path =
-      this.pathfinder.findPath(
-        start,
-        target
-      );
-
-    enemy.pathData =
-      path;
-
-    enemy.pathIndex =
-      0;
-  }
-
-  private followEnemyPath(
-    enemy: EnemySprite
-  ) {
-    const path =
-      enemy.pathData;
-
-    if (
-      !path ||
-      path.length === 0
-    ) {
-      enemy.setVelocity(
-        0,
-        0
-      );
-
-      return;
-    }
-
-    const index =
-      enemy.pathIndex ??
-      0;
-
-    if (
-      index >=
-      path.length
-    ) {
-      /*
-       * Kalau waypoint terakhir sudah
-       * tercapai dan player dekat,
-       * kejar langsung.
-       */
-
-      const distance =
-        Phaser.Math.Distance.Between(
-          enemy.x,
-          enemy.y,
-          this.player.x,
-          this.player.y
-        );
-
-      if (
-        distance <
-        100
-      ) {
-        this.physics.moveToObject(
-          enemy,
-          this.player,
-          this.enemySpeed
-        );
-      } else {
-        enemy.setVelocity(
-          0,
-          0
-        );
-      }
-
-      return;
-    }
-
-    const waypoint =
-      this.gridToWorld(
-        path[index]
-      );
-
-    const distanceToWaypoint =
-      Phaser.Math.Distance.Between(
-        enemy.x,
-        enemy.y,
-        waypoint.x,
-        waypoint.y
-      );
-
-    /*
-     * Sudah dekat pusat tile,
-     * lanjut waypoint berikutnya.
-     */
-
-    if (
-      distanceToWaypoint <
-      12
-    ) {
-      enemy.pathIndex =
-        index + 1;
-
-      return;
-    }
-
-    this.physics.moveTo(
-      enemy,
-      waypoint.x,
-      waypoint.y,
-      this.enemySpeed
-    );
   }
 
   /*
@@ -1379,13 +1253,12 @@ export default class DungeonScene extends Phaser.Scene {
 
   /*
    * =========================================
-   * DAMAGE
+   * PLAYER DAMAGE
    * =========================================
    */
 
   private damagePlayer(
-    enemy:
-      Phaser.Physics.Arcade.Sprite
+    enemy: EnemySprite
   ) {
     const currentTime =
       this.time.now;
@@ -1394,6 +1267,18 @@ export default class DungeonScene extends Phaser.Scene {
       currentTime -
         this.lastDamageTime <
       this.damageCooldown
+    ) {
+      return;
+    }
+
+    /*
+     * Monster yang sedang pulang
+     * tidak memberikan damage.
+     */
+
+    if (
+      enemy.enemyState ===
+      "returning"
     ) {
       return;
     }
@@ -1584,6 +1469,24 @@ export default class DungeonScene extends Phaser.Scene {
         }
       }
     );
+
+    /*
+     * Kalau player menyerang monster
+     * yang sedang idle, monster langsung
+     * aggro walaupun player sedikit
+     * di luar radius deteksi.
+     */
+
+    if (
+      enemy.enemyState ===
+      "idle"
+    ) {
+      enemy.enemyState =
+        "chasing";
+
+      enemy.nextPathUpdate =
+        0;
+    }
 
     if (
       newHP <=
