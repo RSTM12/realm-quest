@@ -18,6 +18,7 @@ export type LootItem = {
 export type LootSprite =
   Phaser.Physics.Arcade.Sprite & {
     lootData?: LootItem;
+    canPickup?: boolean;
   };
 
 type LootTableEntry = {
@@ -43,7 +44,6 @@ export default class LootSystem {
         },
         weight: 45,
       },
-
       {
         item: {
           id: "monster_core",
@@ -54,7 +54,6 @@ export default class LootSystem {
         },
         weight: 28,
       },
-
       {
         item: {
           id: "rusted_blade",
@@ -65,7 +64,6 @@ export default class LootSystem {
         },
         weight: 15,
       },
-
       {
         item: {
           id: "shadow_armor",
@@ -76,7 +74,6 @@ export default class LootSystem {
         },
         weight: 9,
       },
-
       {
         item: {
           id: "ancient_relic",
@@ -92,7 +89,8 @@ export default class LootSystem {
   constructor(
     scene: Phaser.Scene
   ) {
-    this.scene = scene;
+    this.scene =
+      scene;
 
     this.createLootTextures();
 
@@ -114,19 +112,14 @@ export default class LootSystem {
     y: number
   ): LootSprite | null {
     /*
-     * 70% kemungkinan monster
-     * menjatuhkan item.
+     * 70% drop chance.
      */
 
-    const dropChance =
+    if (
       Phaser.Math.Between(
         1,
         100
-      );
-
-    if (
-      dropChance >
-      70
+      ) > 70
     ) {
       return null;
     }
@@ -139,6 +132,10 @@ export default class LootSystem {
         item.rarity
       );
 
+    /*
+     * Spawn di posisi monster mati.
+     */
+
     const loot =
       this.lootGroup.create(
         x,
@@ -150,74 +147,171 @@ export default class LootSystem {
       ...item,
     };
 
+    /*
+     * Belum boleh diambil.
+     */
+
+    loot.canPickup =
+      false;
+
     loot.setDepth(
-      8
+      15
     );
 
     loot.setBodySize(
-      20,
-      20
+      24,
+      24
     );
 
     /*
-     * Sedikit random supaya kalau
-     * nanti satu monster drop banyak item,
-     * item tidak menumpuk persis.
+     * Pilih posisi jatuh.
+     *
+     * Dibuat cukup jauh dari player
+     * yang kemungkinan sedang berdiri
+     * dekat monster.
      */
 
-    loot.setPosition(
-      x +
-        Phaser.Math.Between(
-          -12,
-          12
-        ),
+    const angle =
+      Phaser.Math.FloatBetween(
+        0,
+        Math.PI * 2
+      );
 
+    const distance =
+      Phaser.Math.Between(
+        55,
+        90
+      );
+
+    const targetX =
+      x +
+      Math.cos(
+        angle
+      ) *
+        distance;
+
+    const targetY =
       y +
-        Phaser.Math.Between(
-          -12,
-          12
-        )
-    );
+      Math.sin(
+        angle
+      ) *
+        distance;
 
     /*
-     * Animasi spawn.
+     * Mulai kecil.
      */
 
     loot.setScale(
-      0
+      0.4
     );
 
-    this.scene.tweens.add({
-      targets: loot,
-
-      scale: 1,
-
-      duration: 180,
-
-      ease: "Back.Out",
-    });
-
     /*
-     * Animasi floating.
+     * Animasi item terpental keluar.
      */
 
     this.scene.tweens.add({
-      targets: loot,
+      targets:
+        loot,
+
+      x:
+        targetX,
 
       y:
-        loot.y -
-        6,
+        targetY,
 
-      duration: 700,
+      scale:
+        1,
 
-      yoyo: true,
+      duration:
+        350,
 
-      repeat: -1,
+      ease:
+        "Back.Out",
 
-      ease: "Sine.InOut",
+      onComplete:
+        () => {
+          /*
+           * Pastikan body physics
+           * mengikuti posisi terbaru.
+           */
+
+          const body =
+            loot.body as
+              Phaser.Physics.Arcade.Body;
+
+          if (
+            body
+          ) {
+            body.reset(
+              loot.x,
+              loot.y
+            );
+          }
+
+          /*
+           * Mulai animasi floating
+           * setelah item selesai jatuh.
+           */
+
+          this.startFloatingAnimation(
+            loot
+          );
+        },
     });
 
+    /*
+     * Pickup baru aktif setelah 800ms.
+     */
+
+    this.scene.time.delayedCall(
+      800,
+      () => {
+        if (
+          loot.active
+        ) {
+          loot.canPickup =
+            true;
+        }
+      }
+    );
+
     return loot;
+  }
+
+  /*
+   * =========================================
+   * FLOATING ANIMATION
+   * =========================================
+   */
+
+  private startFloatingAnimation(
+    loot: LootSprite
+  ) {
+    if (
+      !loot.active
+    ) {
+      return;
+    }
+
+    this.scene.tweens.add({
+      targets:
+        loot,
+
+      y:
+        loot.y - 5,
+
+      duration:
+        700,
+
+      yoyo:
+        true,
+
+      repeat:
+        -1,
+
+      ease:
+        "Sine.InOut",
+    });
   }
 
   /*
@@ -236,7 +330,6 @@ export default class LootSystem {
         ) =>
           total +
           entry.weight,
-
         0
       );
 
@@ -262,10 +355,6 @@ export default class LootSystem {
         };
       }
     }
-
-    /*
-     * Fallback.
-     */
 
     return {
       ...this.lootTable[
@@ -323,7 +412,7 @@ export default class LootSystem {
       this.scene.add.graphics();
 
     /*
-     * Glow luar.
+     * Glow.
      */
 
     graphics.fillStyle(
@@ -332,13 +421,13 @@ export default class LootSystem {
     );
 
     graphics.fillCircle(
-      16,
-      16,
-      15
+      20,
+      20,
+      19
     );
 
     /*
-     * Diamond item.
+     * Diamond.
      */
 
     graphics.fillStyle(
@@ -349,23 +438,23 @@ export default class LootSystem {
     graphics.beginPath();
 
     graphics.moveTo(
-      16,
-      3
+      20,
+      4
     );
 
     graphics.lineTo(
-      29,
-      16
+      36,
+      20
     );
 
     graphics.lineTo(
-      16,
-      29
+      20,
+      36
     );
 
     graphics.lineTo(
-      3,
-      16
+      4,
+      20
     );
 
     graphics.closePath();
@@ -373,21 +462,36 @@ export default class LootSystem {
     graphics.fillPath();
 
     /*
-     * Highlight.
+     * Outline.
      */
 
     graphics.lineStyle(
-      2,
+      3,
       0xffffff,
-      0.7
+      0.8
     );
 
     graphics.strokePath();
 
+    /*
+     * Titik terang tengah.
+     */
+
+    graphics.fillStyle(
+      0xffffff,
+      0.8
+    );
+
+    graphics.fillCircle(
+      20,
+      20,
+      4
+    );
+
     graphics.generateTexture(
       key,
-      32,
-      32
+      40,
+      40
     );
 
     graphics.destroy();
