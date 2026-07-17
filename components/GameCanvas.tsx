@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 
 import { gameConfig } from "@/game/config";
 import DungeonScene from "@/game/scenes/DungeonScene";
@@ -17,9 +17,7 @@ export default function GameCanvas() {
 
     gameRef.current = new Phaser.Game({
       ...gameConfig,
-
       parent: gameContainerRef.current,
-
       scene: [DungeonScene],
     });
 
