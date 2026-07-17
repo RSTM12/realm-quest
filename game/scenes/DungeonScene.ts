@@ -20,8 +20,8 @@ export default class DungeonScene extends Phaser.Scene {
   private enemyText!: Phaser.GameObjects.Text;
 
   private playerHP = 100;
-  private readonly maxPlayerHP = 100;
 
+  private readonly maxPlayerHP = 100;
   private readonly playerSpeed = 260;
   private readonly enemySpeed = 100;
 
@@ -71,12 +71,20 @@ export default class DungeonScene extends Phaser.Scene {
       this.enemies
     );
 
+    /*
+     * Pakai callback langsung supaya TypeScript
+     * mengikuti tipe callback bawaan Phaser.
+     */
+
     this.physics.add.overlap(
       this.player,
       this.enemies,
-      this.handlePlayerEnemyCollision,
-      undefined,
-      this
+      (_playerObject, enemyObject) => {
+        const enemy =
+          enemyObject as Phaser.Physics.Arcade.Sprite;
+
+        this.damagePlayer(enemy);
+      }
     );
   }
 
@@ -635,11 +643,6 @@ export default class DungeonScene extends Phaser.Scene {
           3
         );
 
-        enemy.setData(
-          "maxHP",
-          3
-        );
-
         enemy.setDepth(
           9
         );
@@ -786,15 +789,22 @@ export default class DungeonScene extends Phaser.Scene {
   }
 
   private updateUI() {
-    if (this.hpText) {
+    if (
+      this.hpText
+    ) {
       this.hpText.setText(
         `HP: ${this.playerHP} / ${this.maxPlayerHP}`
       );
     }
 
-    if (this.enemyText) {
+    if (
+      this.enemyText &&
+      this.enemies
+    ) {
       this.enemyText.setText(
-        `Enemies: ${this.enemies.countActive(true)}`
+        `Enemies: ${this.enemies.countActive(
+          true
+        )}`
       );
     }
   }
@@ -892,11 +902,6 @@ export default class DungeonScene extends Phaser.Scene {
             this.player.y
           );
 
-        /*
-         * Enemy hanya mengejar
-         * kalau player cukup dekat.
-         */
-
         if (
           distance < 500
         ) {
@@ -917,18 +922,10 @@ export default class DungeonScene extends Phaser.Scene {
     );
   }
 
-  private handlePlayerEnemyCollision(
-    playerObject:
-      Phaser.Types.Physics.Arcade.GameObjectWithBody,
-    enemyObject:
-      Phaser.Types.Physics.Arcade.GameObjectWithBody
+  private damagePlayer(
+    enemy:
+      Phaser.Physics.Arcade.Sprite
   ) {
-    const player =
-      playerObject as Phaser.Physics.Arcade.Sprite;
-
-    const enemy =
-      enemyObject as Phaser.Physics.Arcade.Sprite;
-
     const currentTime =
       this.time.now;
 
@@ -951,11 +948,7 @@ export default class DungeonScene extends Phaser.Scene {
       this.playerHP = 0;
     }
 
-    /*
-     * Efek player kena damage.
-     */
-
-    player.setTint(
+    this.player.setTint(
       0xff0000
     );
 
@@ -963,35 +956,30 @@ export default class DungeonScene extends Phaser.Scene {
       150,
       () => {
         if (
-          player.active
+          this.player.active
         ) {
-          player.clearTint();
+          this.player.clearTint();
         }
       }
     );
 
-    /*
-     * Knockback kecil.
-     */
-
     const knockback =
       new Phaser.Math.Vector2(
-        player.x -
+        this.player.x -
           enemy.x,
 
-        player.y -
+        this.player.y -
           enemy.y
       );
 
     if (
-      knockback.length() >
-      0
+      knockback.length() > 0
     ) {
       knockback
         .normalize()
         .scale(220);
 
-      player.setVelocity(
+      this.player.setVelocity(
         knockback.x,
         knockback.y
       );
@@ -1019,10 +1007,6 @@ export default class DungeonScene extends Phaser.Scene {
 
     this.lastAttackTime =
       time;
-
-    /*
-     * Visual attack circle.
-     */
 
     const attackEffect =
       this.add.circle(
@@ -1061,10 +1045,6 @@ export default class DungeonScene extends Phaser.Scene {
           attackEffect.destroy();
         },
     });
-
-    /*
-     * Cari musuh dalam radius attack.
-     */
 
     this.enemies.children.each(
       (child) => {
@@ -1130,10 +1110,6 @@ export default class DungeonScene extends Phaser.Scene {
       }
     );
 
-    /*
-     * Knockback enemy.
-     */
-
     const knockback =
       new Phaser.Math.Vector2(
         enemy.x -
@@ -1144,8 +1120,7 @@ export default class DungeonScene extends Phaser.Scene {
       );
 
     if (
-      knockback.length() >
-      0
+      knockback.length() > 0
     ) {
       knockback
         .normalize()
@@ -1217,56 +1192,39 @@ export default class DungeonScene extends Phaser.Scene {
     const camera =
       this.cameras.main;
 
-    const gameOverText =
-      this.add
-        .text(
-          camera.width / 2,
-          camera.height / 2,
-          "YOU DIED",
-          {
-            fontFamily:
-              "Arial",
+    this.add
+      .text(
+        camera.width / 2,
+        camera.height / 2,
+        "YOU DIED",
+        {
+          fontFamily:
+            "Arial",
 
-            fontSize:
-              "64px",
+          fontSize:
+            "64px",
 
-            color:
-              "#e85d75",
+          color:
+            "#e85d75",
 
-            fontStyle:
-              "bold",
+          fontStyle:
+            "bold",
 
-            stroke:
-              "#000000",
+          stroke:
+            "#000000",
 
-            strokeThickness:
-              8,
-          }
-        )
-        .setOrigin(
-          0.5
-        )
-        .setScrollFactor(
-          0
-        )
-        .setDepth(
-          1000
-        );
-
-    this.tweens.add({
-      targets:
-        gameOverText,
-
-      scale: {
-        from:
-          0.8,
-
-        to:
-          1,
-      },
-
-      duration:
-        300,
-    });
+          strokeThickness:
+            8,
+        }
+      )
+      .setOrigin(
+        0.5
+      )
+      .setScrollFactor(
+        0
+      )
+      .setDepth(
+        1000
+      );
   }
 }
