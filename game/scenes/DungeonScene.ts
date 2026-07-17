@@ -12,6 +12,8 @@ import LootSystem, {
   LootSprite,
 } from "@/game/loot/LootSystem";
 
+import InventorySystem from "@/game/inventory/InventorySystem";
+
 export default class DungeonScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
   private walls!: Phaser.Physics.Arcade.StaticGroup;
@@ -20,6 +22,8 @@ export default class DungeonScene extends Phaser.Scene {
   private enemyAIs: EnemyAI[] = [];
 
   private lootSystem!: LootSystem;
+
+  private inventory!: InventorySystem;
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
 
@@ -34,7 +38,12 @@ export default class DungeonScene extends Phaser.Scene {
 
   private hpText!: Phaser.GameObjects.Text;
   private enemyText!: Phaser.GameObjects.Text;
-  private lootText!: Phaser.GameObjects.Text;
+
+  private inventoryTitleText!: Phaser.GameObjects.Text;
+  private inventoryContentText!: Phaser.GameObjects.Text;
+  private inventoryValueText!: Phaser.GameObjects.Text;
+
+  private inventoryBackground!: Phaser.GameObjects.Rectangle;
 
   private playerHP = 100;
 
@@ -65,7 +74,7 @@ export default class DungeonScene extends Phaser.Scene {
 
   private readonly attackCooldown = 400;
 
-  private collectedLoot = 0;
+  private inventoryFullMessageCooldown = false;
 
   constructor() {
     super("DungeonScene");
@@ -100,8 +109,18 @@ export default class DungeonScene extends Phaser.Scene {
     this.createPlayer();
 
     /*
-     * Loot system harus dibuat
-     * sebelum monster mulai bisa mati.
+     * INVENTORY
+     *
+     * Player punya 8 slot.
+     */
+
+    this.inventory =
+      new InventorySystem(
+        8
+      );
+
+    /*
+     * LOOT SYSTEM
      */
 
     this.lootSystem =
@@ -118,7 +137,9 @@ export default class DungeonScene extends Phaser.Scene {
     this.createUI();
 
     /*
+     * =========================================
      * COLLISION
+     * =========================================
      */
 
     this.physics.add.collider(
@@ -132,7 +153,9 @@ export default class DungeonScene extends Phaser.Scene {
     );
 
     /*
-     * DAMAGE PLAYER
+     * =========================================
+     * PLAYER DAMAGE
+     * =========================================
      */
 
     this.physics.add.overlap(
@@ -152,9 +175,9 @@ export default class DungeonScene extends Phaser.Scene {
     );
 
     /*
+     * =========================================
      * PICKUP LOOT
-     *
-     * Player cukup menyentuh loot.
+     * =========================================
      */
 
     this.physics.add.overlap(
@@ -1045,7 +1068,7 @@ export default class DungeonScene extends Phaser.Scene {
 
   /*
    * =========================================
-   * CAMERA + UI
+   * CAMERA
    * =========================================
    */
 
@@ -1062,7 +1085,17 @@ export default class DungeonScene extends Phaser.Scene {
     );
   }
 
+  /*
+   * =========================================
+   * UI
+   * =========================================
+   */
+
   private createUI() {
+    /*
+     * LEFT HUD
+     */
+
     this.add
       .text(
         24,
@@ -1140,11 +1173,119 @@ export default class DungeonScene extends Phaser.Scene {
           100
         );
 
-    this.lootText =
+    this.add
+      .text(
+        24,
+        116,
+        "WASD: Move | SPACE: Attack",
+        {
+          fontFamily:
+            "Arial",
+
+          fontSize:
+            "13px",
+
+          color:
+            "#89959c",
+        }
+      )
+      .setScrollFactor(
+        0
+      )
+      .setDepth(
+        100
+      );
+
+    /*
+     * =========================================
+     * INVENTORY PANEL
+     * =========================================
+     */
+
+    const cameraWidth =
+      this.cameras.main.width;
+
+    this.inventoryBackground =
+      this.add
+        .rectangle(
+          cameraWidth - 170,
+          145,
+          300,
+          250,
+          0x080c0f,
+          0.88
+        )
+        .setStrokeStyle(
+          2,
+          0x3c474d,
+          1
+        )
+        .setScrollFactor(
+          0
+        )
+        .setDepth(
+          99
+        );
+
+    this.inventoryTitleText =
       this.add
         .text(
-          24,
-          112,
+          cameraWidth - 300,
+          38,
+          "",
+          {
+            fontFamily:
+              "Arial",
+
+            fontSize:
+              "18px",
+
+            color:
+              "#d9a84e",
+
+            fontStyle:
+              "bold",
+          }
+        )
+        .setScrollFactor(
+          0
+        )
+        .setDepth(
+          100
+        );
+
+    this.inventoryContentText =
+      this.add
+        .text(
+          cameraWidth - 300,
+          72,
+          "",
+          {
+            fontFamily:
+              "Arial",
+
+            fontSize:
+              "14px",
+
+            color:
+              "#d0d6da",
+
+            lineSpacing:
+              7,
+          }
+        )
+        .setScrollFactor(
+          0
+        )
+        .setDepth(
+          100
+        );
+
+    this.inventoryValueText =
+      this.add
+        .text(
+          cameraWidth - 300,
+          245,
           "",
           {
             fontFamily:
@@ -1166,29 +1307,6 @@ export default class DungeonScene extends Phaser.Scene {
         .setDepth(
           100
         );
-
-    this.add
-      .text(
-        24,
-        140,
-        "WASD: Move | SPACE: Attack",
-        {
-          fontFamily:
-            "Arial",
-
-          fontSize:
-            "13px",
-
-          color:
-            "#89959c",
-        }
-      )
-      .setScrollFactor(
-        0
-      )
-      .setDepth(
-        100
-      );
 
     this.updateUI();
   }
@@ -1213,13 +1331,85 @@ export default class DungeonScene extends Phaser.Scene {
       );
     }
 
+    this.updateInventoryUI();
+  }
+
+  /*
+   * =========================================
+   * INVENTORY UI
+   * =========================================
+   */
+
+  private updateInventoryUI() {
     if (
-      this.lootText
+      !this.inventory ||
+      !this.inventoryTitleText ||
+      !this.inventoryContentText ||
+      !this.inventoryValueText
     ) {
-      this.lootText.setText(
-        `Loot Collected: ${this.collectedLoot}`
+      return;
+    }
+
+    const slots =
+      this.inventory.getSlots();
+
+    const usedSlots =
+      this.inventory.getUsedSlots();
+
+    const maxSlots =
+      this.inventory.getMaxSlots();
+
+    this.inventoryTitleText.setText(
+      `INVENTORY  ${usedSlots}/${maxSlots}`
+    );
+
+    /*
+     * Tampilkan semua 8 slot.
+     */
+
+    const lines:
+      string[] = [];
+
+    for (
+      let i = 0;
+      i < maxSlots;
+      i++
+    ) {
+      const slot =
+        slots[
+          i
+        ];
+
+      if (
+        !slot
+      ) {
+        lines.push(
+          `${i + 1}. [ Empty ]`
+        );
+
+        continue;
+      }
+
+      const quantityText =
+        slot.quantity >
+        1
+          ? ` x${slot.quantity}`
+          : "";
+
+      lines.push(
+        `${i + 1}. ${slot.item.name}${quantityText}`
       );
     }
+
+    this.inventoryContentText.setText(
+      lines.join(
+        "\n"
+      )
+    );
+
+    this.inventoryValueText.setText(
+      `Run Value: ${this.inventory.getTotalValue()}`
+    );
   }
 
   /*
@@ -1321,11 +1511,6 @@ export default class DungeonScene extends Phaser.Scene {
     ) {
       return;
     }
-
-    /*
-     * Monster yang sedang pulang
-     * tidak bisa damage player.
-     */
 
     if (
       enemy.enemyState ===
@@ -1521,11 +1706,6 @@ export default class DungeonScene extends Phaser.Scene {
       }
     );
 
-    /*
-     * Kalau player menyerang monster idle,
-     * monster langsung ngejar.
-     */
-
     if (
       enemy.enemyState ===
       "idle"
@@ -1549,26 +1729,18 @@ export default class DungeonScene extends Phaser.Scene {
 
   /*
    * =========================================
-   * ENEMY DEATH + LOOT DROP
+   * ENEMY DEATH + LOOT
    * =========================================
    */
 
   private killEnemy(
     enemy: EnemySprite
   ) {
-    /*
-     * Simpan posisi sebelum enemy dihancurkan.
-     */
-
     const deathX =
       enemy.x;
 
     const deathY =
       enemy.y;
-
-    /*
-     * Efek kematian.
-     */
 
     const deathEffect =
       this.add.circle(
@@ -1602,15 +1774,7 @@ export default class DungeonScene extends Phaser.Scene {
         },
     });
 
-    /*
-     * Hancurkan monster.
-     */
-
     enemy.destroy();
-
-    /*
-     * Roll loot.
-     */
 
     this.lootSystem.dropLoot(
       deathX,
@@ -1629,11 +1793,6 @@ export default class DungeonScene extends Phaser.Scene {
   private pickupLoot(
     loot: LootSprite
   ) {
-    /*
-     * Cegah callback setelah loot
-     * sudah dihancurkan.
-     */
-
     if (
       !loot.active
     ) {
@@ -1641,14 +1800,7 @@ export default class DungeonScene extends Phaser.Scene {
     }
 
     /*
-     * FIX:
-     *
-     * Loot yang baru jatuh belum
-     * boleh langsung diambil.
-     *
-     * LootSystem akan mengubah
-     * canPickup menjadi true
-     * setelah pickup delay selesai.
+     * Tunggu pickup delay selesai.
      */
 
     if (
@@ -1669,49 +1821,137 @@ export default class DungeonScene extends Phaser.Scene {
     }
 
     /*
-     * Langsung nonaktifkan pickup.
+     * Coba masukkan item
+     * ke inventory.
+     */
+
+    const added =
+      this.inventory.addItem(
+        item
+      );
+
+    /*
+     * INVENTORY PENUH
      *
-     * Ini mencegah callback overlap
-     * mengambil item dua kali.
+     * Loot tidak dihancurkan.
+     * Jadi tetap ada di tanah.
+     */
+
+    if (
+      !added
+    ) {
+      this.showInventoryFull();
+
+      return;
+    }
+
+    /*
+     * Pickup berhasil.
      */
 
     loot.canPickup =
       false;
-
-    /*
-     * Tambah counter sementara.
-     */
-
-    this.collectedLoot +=
-      1;
-
-    /*
-     * Tampilkan nama item.
-     */
 
     this.showLootPickup(
       item.name,
       item.rarity
     );
 
-    /*
-     * Loot punya tween floating
-     * yang berjalan terus.
-     *
-     * Matikan tween sebelum destroy.
-     */
-
     this.tweens.killTweensOf(
       loot
     );
 
-    /*
-     * Hapus loot dari dunia.
-     */
-
     loot.destroy();
 
     this.updateUI();
+  }
+
+  /*
+   * =========================================
+   * INVENTORY FULL MESSAGE
+   * =========================================
+   */
+
+  private showInventoryFull() {
+    /*
+     * Overlap berjalan setiap frame.
+     *
+     * Cooldown mencegah ratusan
+     * tulisan muncul sekaligus.
+     */
+
+    if (
+      this.inventoryFullMessageCooldown
+    ) {
+      return;
+    }
+
+    this.inventoryFullMessageCooldown =
+      true;
+
+    const text =
+      this.add
+        .text(
+          this.player.x,
+          this.player.y -
+            50,
+
+          "INVENTORY FULL",
+
+          {
+            fontFamily:
+              "Arial",
+
+            fontSize:
+              "16px",
+
+            color:
+              "#ff6677",
+
+            fontStyle:
+              "bold",
+
+            stroke:
+              "#000000",
+
+            strokeThickness:
+              4,
+          }
+        )
+        .setOrigin(
+          0.5
+        )
+        .setDepth(
+          100
+        );
+
+    this.tweens.add({
+      targets:
+        text,
+
+      y:
+        text.y -
+        30,
+
+      alpha:
+        0,
+
+      duration:
+        900,
+
+      onComplete:
+        () => {
+          text.destroy();
+        },
+    });
+
+    this.time.delayedCall(
+      1000,
+      () => {
+        this.inventoryFullMessageCooldown =
+          false;
+      }
+    );
   }
 
   /*
@@ -1822,6 +2062,15 @@ export default class DungeonScene extends Phaser.Scene {
     this.player.setTint(
       0x555555
     );
+
+    /*
+     * Untuk sistem extraction:
+     * loot selama run hilang saat mati.
+     */
+
+    this.inventory.clear();
+
+    this.updateUI();
 
     const camera =
       this.cameras.main;
