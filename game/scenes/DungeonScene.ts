@@ -8,12 +8,18 @@ import EnemyAI, {
   EnemySprite,
 } from "@/game/enemies/EnemyAI";
 
+import LootSystem, {
+  LootSprite,
+} from "@/game/loot/LootSystem";
+
 export default class DungeonScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
   private walls!: Phaser.Physics.Arcade.StaticGroup;
   private enemies!: Phaser.Physics.Arcade.Group;
 
   private enemyAIs: EnemyAI[] = [];
+
+  private lootSystem!: LootSystem;
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
 
@@ -28,6 +34,7 @@ export default class DungeonScene extends Phaser.Scene {
 
   private hpText!: Phaser.GameObjects.Text;
   private enemyText!: Phaser.GameObjects.Text;
+  private lootText!: Phaser.GameObjects.Text;
 
   private playerHP = 100;
 
@@ -57,6 +64,8 @@ export default class DungeonScene extends Phaser.Scene {
   private lastAttackTime = 0;
 
   private readonly attackCooldown = 400;
+
+  private collectedLoot = 0;
 
   constructor() {
     super("DungeonScene");
@@ -90,6 +99,16 @@ export default class DungeonScene extends Phaser.Scene {
 
     this.createPlayer();
 
+    /*
+     * Loot system harus dibuat
+     * sebelum monster mulai bisa mati.
+     */
+
+    this.lootSystem =
+      new LootSystem(
+        this
+      );
+
     this.createEnemies();
 
     this.createControls();
@@ -97,6 +116,10 @@ export default class DungeonScene extends Phaser.Scene {
     this.createCamera();
 
     this.createUI();
+
+    /*
+     * COLLISION
+     */
 
     this.physics.add.collider(
       this.enemies,
@@ -107,6 +130,10 @@ export default class DungeonScene extends Phaser.Scene {
       this.enemies,
       this.enemies
     );
+
+    /*
+     * DAMAGE PLAYER
+     */
 
     this.physics.add.overlap(
       this.player,
@@ -120,6 +147,28 @@ export default class DungeonScene extends Phaser.Scene {
 
         this.damagePlayer(
           enemy
+        );
+      }
+    );
+
+    /*
+     * PICKUP LOOT
+     *
+     * Player cukup menyentuh loot.
+     */
+
+    this.physics.add.overlap(
+      this.player,
+      this.lootSystem.lootGroup,
+      (
+        _playerObject,
+        lootObject
+      ) => {
+        const loot =
+          lootObject as LootSprite;
+
+        this.pickupLoot(
+          loot
         );
       }
     );
@@ -828,13 +877,6 @@ export default class DungeonScene extends Phaser.Scene {
     this.enemyAIs =
       [];
 
-    /*
-     * Posisi monster sengaja dibuat
-     * cukup berjauhan supaya player
-     * tidak langsung meng-aggro
-     * banyak monster sekaligus.
-     */
-
     const enemyPositions = [
       {
         x: 800,
@@ -897,11 +939,6 @@ export default class DungeonScene extends Phaser.Scene {
           9
         );
 
-        /*
-         * Setiap monster punya
-         * instance AI sendiri.
-         */
-
         const enemyAI =
           new EnemyAI({
             scene:
@@ -921,42 +958,21 @@ export default class DungeonScene extends Phaser.Scene {
             gridToWorld:
               this.gridToWorld,
 
-            /*
-             * Kecepatan monster lebih lambat
-             * dari player supaya player
-             * masih bisa kabur.
-             */
-
             speed:
               105,
 
-            /*
-             * Monster baru sadar player
-             * kalau jaraknya <= 250px.
-             */
-
             aggroRadius:
               250,
-
-            /*
-             * Monster tidak boleh ditarik
-             * lebih dari 420px dari spawn.
-             */
 
             leashRadius:
               420,
 
             returnDistance:
-              24,
+              48,
 
             pathUpdateInterval:
               450,
           });
-
-        /*
-         * Biar pathfinding monster tidak
-         * semuanya update bersamaan.
-         */
 
         enemy.nextPathUpdate =
           index *
@@ -1124,10 +1140,37 @@ export default class DungeonScene extends Phaser.Scene {
           100
         );
 
+    this.lootText =
+      this.add
+        .text(
+          24,
+          112,
+          "",
+          {
+            fontFamily:
+              "Arial",
+
+            fontSize:
+              "14px",
+
+            color:
+              "#ffd166",
+
+            fontStyle:
+              "bold",
+          }
+        )
+        .setScrollFactor(
+          0
+        )
+        .setDepth(
+          100
+        );
+
     this.add
       .text(
         24,
-        116,
+        140,
         "WASD: Move | SPACE: Attack",
         {
           fontFamily:
@@ -1167,6 +1210,14 @@ export default class DungeonScene extends Phaser.Scene {
         `Enemies: ${this.enemies.countActive(
           true
         )}`
+      );
+    }
+
+    if (
+      this.lootText
+    ) {
+      this.lootText.setText(
+        `Loot Collected: ${this.collectedLoot}`
       );
     }
   }
@@ -1273,7 +1324,7 @@ export default class DungeonScene extends Phaser.Scene {
 
     /*
      * Monster yang sedang pulang
-     * tidak memberikan damage.
+     * tidak bisa damage player.
      */
 
     if (
@@ -1471,10 +1522,8 @@ export default class DungeonScene extends Phaser.Scene {
     );
 
     /*
-     * Kalau player menyerang monster
-     * yang sedang idle, monster langsung
-     * aggro walaupun player sedikit
-     * di luar radius deteksi.
+     * Kalau player menyerang monster idle,
+     * monster langsung ngejar.
      */
 
     if (
@@ -1498,13 +1547,33 @@ export default class DungeonScene extends Phaser.Scene {
     }
   }
 
+  /*
+   * =========================================
+   * ENEMY DEATH + LOOT DROP
+   * =========================================
+   */
+
   private killEnemy(
     enemy: EnemySprite
   ) {
+    /*
+     * Simpan posisi sebelum enemy dihancurkan.
+     */
+
+    const deathX =
+      enemy.x;
+
+    const deathY =
+      enemy.y;
+
+    /*
+     * Efek kematian.
+     */
+
     const deathEffect =
       this.add.circle(
-        enemy.x,
-        enemy.y,
+        deathX,
+        deathY,
         20,
         0xe85d75,
         0.8
@@ -1533,9 +1602,180 @@ export default class DungeonScene extends Phaser.Scene {
         },
     });
 
+    /*
+     * Hancurkan monster.
+     */
+
     enemy.destroy();
 
+    /*
+     * Roll loot.
+     *
+     * LootSystem sendiri yang menentukan
+     * apakah item drop atau tidak.
+     */
+
+    this.lootSystem.dropLoot(
+      deathX,
+      deathY
+    );
+
     this.updateUI();
+  }
+
+  /*
+   * =========================================
+   * PICKUP LOOT
+   * =========================================
+   */
+
+  private pickupLoot(
+    loot: LootSprite
+  ) {
+    /*
+     * Cegah overlap callback
+     * terpanggil dua kali.
+     */
+
+    if (
+      !loot.active
+    ) {
+      return;
+    }
+
+    const item =
+      loot.lootData;
+
+    if (
+      !item
+    ) {
+      loot.destroy();
+
+      return;
+    }
+
+    /*
+     * Tambah counter sementara.
+     *
+     * Next nanti kita ganti dengan
+     * inventory sungguhan.
+     */
+
+    this.collectedLoot +=
+      1;
+
+    /*
+     * Tampilkan nama item yang didapat.
+     */
+
+    this.showLootPickup(
+      item.name,
+      item.rarity
+    );
+
+    /*
+     * Hancurkan loot dari dunia.
+     */
+
+    loot.destroy();
+
+    this.updateUI();
+  }
+
+  /*
+   * =========================================
+   * LOOT PICKUP MESSAGE
+   * =========================================
+   */
+
+  private showLootPickup(
+    itemName: string,
+    rarity: string
+  ) {
+    const rarityColors:
+      Record<
+        string,
+        string
+      > = {
+      common:
+        "#b7c0c7",
+
+      uncommon:
+        "#62c370",
+
+      rare:
+        "#4d8dff",
+
+      epic:
+        "#a855f7",
+
+      legendary:
+        "#ffa928",
+    };
+
+    const color =
+      rarityColors[
+        rarity
+      ] ??
+      "#ffffff";
+
+    const text =
+      this.add
+        .text(
+          this.player.x,
+          this.player.y -
+            45,
+
+          `+ ${itemName}`,
+
+          {
+            fontFamily:
+              "Arial",
+
+            fontSize:
+              "16px",
+
+            color,
+
+            fontStyle:
+              "bold",
+
+            stroke:
+              "#000000",
+
+            strokeThickness:
+              4,
+          }
+        )
+        .setOrigin(
+          0.5
+        )
+        .setDepth(
+          100
+        );
+
+    this.tweens.add({
+      targets:
+        text,
+
+      y:
+        text.y -
+        35,
+
+      alpha:
+        0,
+
+      duration:
+        1000,
+
+      ease:
+        "Power2",
+
+      onComplete:
+        () => {
+          text.destroy();
+        },
+    });
   }
 
   /*
