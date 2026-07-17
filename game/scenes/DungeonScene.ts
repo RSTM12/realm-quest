@@ -1,4 +1,4 @@
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 
 export default class DungeonScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
@@ -51,17 +51,24 @@ export default class DungeonScene extends Phaser.Scene {
 
   private createTextures() {
     /*
-     * PLAYER
+     * PLAYER TEXTURE
      */
 
     const playerGraphics = this.make.graphics({
       x: 0,
       y: 0,
-      add: false,
     });
 
-    playerGraphics.fillStyle(0xd9a84e, 1);
-    playerGraphics.fillCircle(18, 18, 15);
+    playerGraphics.fillStyle(
+      0xd9a84e,
+      1
+    );
+
+    playerGraphics.fillCircle(
+      18,
+      18,
+      15
+    );
 
     playerGraphics.lineStyle(
       3,
@@ -84,13 +91,12 @@ export default class DungeonScene extends Phaser.Scene {
     playerGraphics.destroy();
 
     /*
-     * WALL
+     * WALL TEXTURE
      */
 
     const wallGraphics = this.make.graphics({
       x: 0,
       y: 0,
-      add: false,
     });
 
     wallGraphics.fillStyle(
@@ -154,7 +160,10 @@ export default class DungeonScene extends Phaser.Scene {
       x < this.worldWidth;
       x += 64
     ) {
-      this.createWall(x, 32);
+      this.createWall(
+        x,
+        32
+      );
 
       this.createWall(
         x,
@@ -167,7 +176,10 @@ export default class DungeonScene extends Phaser.Scene {
       y < this.worldHeight - 64;
       y += 64
     ) {
-      this.createWall(32, y);
+      this.createWall(
+        32,
+        y
+      );
 
       this.createWall(
         this.worldWidth - 32,
@@ -176,7 +188,7 @@ export default class DungeonScene extends Phaser.Scene {
     }
 
     /*
-     * INTERNAL DUNGEON WALLS
+     * INTERNAL WALLS
      */
 
     this.createHorizontalWall(
@@ -429,7 +441,9 @@ export default class DungeonScene extends Phaser.Scene {
       true
     );
 
-    this.player.setDepth(10);
+    this.player.setDepth(
+      10
+    );
 
     this.player.body.setSize(
       28,
