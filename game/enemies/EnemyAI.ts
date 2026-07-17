@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+
 import GridPathfinder, {
   GridPoint,
 } from "@/game/pathfinding/GridPathfinder";
@@ -63,51 +64,27 @@ export default class EnemyAI {
   private readonly pathfinder:
     GridPathfinder;
 
-  private readonly worldToGrid:
-    (
-      x: number,
-      y: number
-    ) => GridPoint;
+  private readonly worldToGrid: (
+    x: number,
+    y: number
+  ) => GridPoint;
 
-  private readonly gridToWorld:
-    (
-      point: GridPoint
-    ) => {
-      x: number;
-      y: number;
-    };
+  private readonly gridToWorld: (
+    point: GridPoint
+  ) => {
+    x: number;
+    y: number;
+  };
 
   private readonly speed: number;
 
-  /*
-   * Player harus sedekat ini
-   * supaya monster mulai mengejar.
-   */
+  private readonly aggroRadius: number;
 
-  private readonly aggroRadius:
-    number;
+  private readonly leashRadius: number;
 
-  /*
-   * Kalau monster sudah mengejar,
-   * player tidak boleh menarik monster
-   * lebih jauh dari jarak ini
-   * terhadap titik spawn monster.
-   */
+  private readonly returnDistance: number;
 
-  private readonly leashRadius:
-    number;
-
-  /*
-   * Monster dianggap sudah sampai rumah
-   * kalau jaraknya dari spawn
-   * sudah lebih kecil dari nilai ini.
-   */
-
-  private readonly returnDistance:
-    number;
-
-  private readonly pathUpdateInterval:
-    number;
+  private readonly pathUpdateInterval: number;
 
   constructor(
     config: EnemyAIConfig
@@ -134,35 +111,30 @@ export default class EnemyAI {
       config.speed ??
       105;
 
-    /*
-     * Default:
-     *
-     * 280 px = baru aggro kalau dekat.
-     */
-
     this.aggroRadius =
       config.aggroRadius ??
-      280;
-
-    /*
-     * Maksimal monster boleh ditarik
-     * 450 px dari tempat spawn.
-     */
+      250;
 
     this.leashRadius =
       config.leashRadius ??
-      450;
+      420;
+
+    /*
+     * Kita bikin lebih longgar.
+     * Jadi monster nggak perlu
+     * tepat banget di titik spawn.
+     */
 
     this.returnDistance =
       config.returnDistance ??
-      20;
+      48;
 
     this.pathUpdateInterval =
       config.pathUpdateInterval ??
-      500;
+      450;
 
     /*
-     * Simpan posisi awal monster.
+     * Simpan titik rumah monster.
      */
 
     this.enemy.spawnX =
@@ -198,29 +170,35 @@ export default class EnemyAI {
       this.enemy.enemyState ??
       "idle";
 
-    switch (
-      state
+    if (
+      state ===
+      "idle"
     ) {
-      case "idle":
-        this.updateIdle(
-          time
-        );
+      this.updateIdle(
+        time
+      );
 
-        break;
+      return;
+    }
 
-      case "chasing":
-        this.updateChasing(
-          time
-        );
+    if (
+      state ===
+      "chasing"
+    ) {
+      this.updateChasing(
+        time
+      );
 
-        break;
+      return;
+    }
 
-      case "returning":
-        this.updateReturning(
-          time
-        );
-
-        break;
+    if (
+      state ===
+      "returning"
+    ) {
+      this.updateReturning(
+        time
+      );
     }
   }
 
@@ -247,8 +225,7 @@ export default class EnemyAI {
       );
 
     /*
-     * Player masih jauh.
-     * Monster santai.
+     * Player belum cukup dekat.
      */
 
     if (
@@ -259,8 +236,11 @@ export default class EnemyAI {
     }
 
     /*
-     * Player masuk radius.
-     * Mulai ngejar.
+     * Player masuk aggro radius.
+     *
+     * Monster boleh aktif lagi
+     * walaupun sebelumnya sudah
+     * pernah mengejar dan pulang.
      */
 
     this.enemy.enemyState =
@@ -290,11 +270,8 @@ export default class EnemyAI {
       this.enemy.y;
 
     /*
-     * Ukur posisi player terhadap
-     * tempat spawn monster.
-     *
-     * Jadi player tidak bisa menarik
-     * monster keliling seluruh dungeon.
+     * Leash dihitung dari posisi
+     * PLAYER terhadap rumah monster.
      */
 
     const playerDistanceFromSpawn =
@@ -306,29 +283,23 @@ export default class EnemyAI {
       );
 
     /*
-     * Player sudah kabur terlalu jauh.
-     *
-     * Monster berhenti ngejar
-     * dan langsung pulang.
+     * Player sudah terlalu jauh.
+     * Monster pulang.
      */
 
     if (
       playerDistanceFromSpawn >
       this.leashRadius
     ) {
-      this.enemy.enemyState =
-        "returning";
-
-      this.enemy.nextPathUpdate =
-        time;
-
-      this.clearPath();
+      this.startReturning(
+        time
+      );
 
       return;
     }
 
     /*
-     * Update path ke player.
+     * Update jalur menuju player.
      */
 
     if (
@@ -382,37 +353,23 @@ export default class EnemyAI {
       );
 
     /*
-     * Sudah sampai rumah.
+     * FIX UTAMA:
+     *
+     * Kalau monster sudah cukup dekat
+     * dengan rumah, langsung reset.
      */
 
     if (
       distanceToSpawn <=
       this.returnDistance
     ) {
-      this.enemy.setPosition(
-        spawnX,
-        spawnY
-      );
-
-      this.enemy.setVelocity(
-        0,
-        0
-      );
-
-      this.enemy.enemyState =
-        "idle";
-
-      this.clearPath();
+      this.finishReturning();
 
       return;
     }
 
     /*
-     * Saat pulang monster tidak peduli
-     * player meskipun player mendekat.
-     *
-     * Harus pulang dulu sebelum
-     * bisa aggro lagi.
+     * Update jalur pulang.
      */
 
     if (
@@ -433,7 +390,109 @@ export default class EnemyAI {
         this.pathUpdateInterval;
     }
 
+    /*
+     * Kalau path kosong tetapi monster
+     * sebenarnya sudah dekat rumah,
+     * jangan biarkan state returning
+     * nyangkut selamanya.
+     */
+
+    const path =
+      this.enemy.pathData;
+
+    const pathIndex =
+      this.enemy.pathIndex ??
+      0;
+
+    if (
+      (
+        !path ||
+        path.length === 0 ||
+        pathIndex >=
+          path.length
+      ) &&
+      distanceToSpawn <=
+        this.returnDistance +
+          64
+    ) {
+      this.finishReturning();
+
+      return;
+    }
+
     this.followPath();
+  }
+
+  /*
+   * =====================================
+   * RETURN HELPERS
+   * =====================================
+   */
+
+  private startReturning(
+    time: number
+  ) {
+    this.enemy.enemyState =
+      "returning";
+
+    this.enemy.nextPathUpdate =
+      time;
+
+    this.clearPath();
+  }
+
+  private finishReturning() {
+    const spawnX =
+      this.enemy.spawnX ??
+      this.enemy.x;
+
+    const spawnY =
+      this.enemy.spawnY ??
+      this.enemy.y;
+
+    /*
+     * Pastikan posisi monster benar-benar
+     * kembali ke titik awal.
+     */
+
+    this.enemy.setPosition(
+      spawnX,
+      spawnY
+    );
+
+    /*
+     * Reset velocity.
+     */
+
+    this.enemy.setVelocity(
+      0,
+      0
+    );
+
+    /*
+     * Reset seluruh data path.
+     */
+
+    this.enemy.pathData =
+      [];
+
+    this.enemy.pathIndex =
+      0;
+
+    this.enemy.nextPathUpdate =
+      0;
+
+    /*
+     * Yang paling penting:
+     * monster kembali ke IDLE.
+     *
+     * Setelah ini kalau player mendekat
+     * lagi, updateIdle() akan membuat
+     * monster aggro lagi.
+     */
+
+    this.enemy.enemyState =
+      "idle";
   }
 
   /*
@@ -458,11 +517,14 @@ export default class EnemyAI {
         targetY
       );
 
-    this.enemy.pathData =
+    const path =
       this.pathfinder.findPath(
         start,
         target
       );
+
+    this.enemy.pathData =
+      path;
 
     this.enemy.pathIndex =
       0;
@@ -510,7 +572,7 @@ export default class EnemyAI {
         gridPoint
       );
 
-    const distance =
+    const distanceToWaypoint =
       Phaser.Math.Distance.Between(
         this.enemy.x,
         this.enemy.y,
@@ -519,13 +581,12 @@ export default class EnemyAI {
       );
 
     /*
-     * Sampai waypoint.
-     * Lanjut tile berikutnya.
+     * Sudah sampai waypoint.
      */
 
     if (
-      distance <
-      12
+      distanceToWaypoint <
+      14
     ) {
       this.enemy.pathIndex =
         pathIndex +
@@ -534,6 +595,10 @@ export default class EnemyAI {
       return;
     }
 
+    /*
+     * Jalan menuju waypoint.
+     */
+
     this.scene.physics.moveTo(
       this.enemy,
       waypoint.x,
@@ -541,6 +606,12 @@ export default class EnemyAI {
       this.speed
     );
   }
+
+  /*
+   * =====================================
+   * PATH RESET
+   * =====================================
+   */
 
   private clearPath() {
     this.enemy.pathData =
@@ -556,7 +627,9 @@ export default class EnemyAI {
   }
 
   /*
-   * Bisa dipakai nanti untuk debug UI.
+   * =====================================
+   * PUBLIC HELPERS
+   * =====================================
    */
 
   public getState():
@@ -566,11 +639,6 @@ export default class EnemyAI {
       "idle"
     );
   }
-
-  /*
-   * Bisa dipakai kalau nanti ada skill
-   * yang memaksa monster berhenti mengejar.
-   */
 
   public forceReturn() {
     this.enemy.enemyState =
