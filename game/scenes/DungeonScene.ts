@@ -1,4 +1,14 @@
 import * as Phaser from "phaser";
+import GridPathfinder, {
+  GridPoint,
+} from "@/game/pathfinding/GridPathfinder";
+
+type EnemySprite =
+  Phaser.Physics.Arcade.Sprite & {
+    pathData?: GridPoint[];
+    pathIndex?: number;
+    nextPathUpdate?: number;
+  };
 
 export default class DungeonScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
@@ -22,16 +32,31 @@ export default class DungeonScene extends Phaser.Scene {
   private playerHP = 100;
 
   private readonly maxPlayerHP = 100;
-  private readonly playerSpeed = 260;
-  private readonly enemySpeed = 100;
 
-  private readonly worldWidth = 2400;
+  private readonly playerSpeed = 260;
+  private readonly enemySpeed = 110;
+
+  private readonly tileSize = 64;
+
+  private readonly worldWidth = 2432;
   private readonly worldHeight = 1600;
 
+  private readonly columns =
+    this.worldWidth / this.tileSize;
+
+  private readonly rows =
+    this.worldHeight / this.tileSize;
+
+  private navigationGrid: boolean[][] = [];
+
+  private pathfinder!: GridPathfinder;
+
   private lastDamageTime = 0;
+
   private readonly damageCooldown = 800;
 
   private lastAttackTime = 0;
+
   private readonly attackCooldown = 400;
 
   constructor() {
@@ -53,12 +78,25 @@ export default class DungeonScene extends Phaser.Scene {
       this.worldHeight
     );
 
+    this.createNavigationGrid();
+
     this.createTextures();
+
     this.createDungeon();
+
+    this.pathfinder =
+      new GridPathfinder(
+        this.navigationGrid
+      );
+
     this.createPlayer();
+
     this.createEnemies();
+
     this.createControls();
+
     this.createCamera();
+
     this.createUI();
 
     this.physics.add.collider(
@@ -71,26 +109,29 @@ export default class DungeonScene extends Phaser.Scene {
       this.enemies
     );
 
-    /*
-     * Pakai callback langsung supaya TypeScript
-     * mengikuti tipe callback bawaan Phaser.
-     */
-
     this.physics.add.overlap(
       this.player,
       this.enemies,
-      (_playerObject, enemyObject) => {
+      (
+        _playerObject,
+        enemyObject
+      ) => {
         const enemy =
           enemyObject as Phaser.Physics.Arcade.Sprite;
 
-        this.damagePlayer(enemy);
+        this.damagePlayer(
+          enemy
+        );
       }
     );
   }
 
   update(time: number) {
     this.handlePlayerMovement();
-    this.updateEnemies();
+
+    this.updateEnemies(
+      time
+    );
 
     if (
       this.attackKey &&
@@ -98,16 +139,147 @@ export default class DungeonScene extends Phaser.Scene {
         this.attackKey
       )
     ) {
-      this.playerAttack(time);
+      this.playerAttack(
+        time
+      );
     }
   }
 
-  private createTextures() {
+  /*
+   * =========================================
+   * NAVIGATION GRID
+   * =========================================
+   */
+
+  private createNavigationGrid() {
+    this.navigationGrid =
+      Array.from(
+        {
+          length:
+            this.rows,
+        },
+        () =>
+          Array.from(
+            {
+              length:
+                this.columns,
+            },
+            () => true
+          )
+      );
+
     /*
-     * PLAYER
+     * Batas map.
      */
 
-    if (!this.textures.exists("player")) {
+    for (
+      let col = 0;
+      col < this.columns;
+      col++
+    ) {
+      this.blockTile(
+        col,
+        0
+      );
+
+      this.blockTile(
+        col,
+        this.rows - 1
+      );
+    }
+
+    for (
+      let row = 0;
+      row < this.rows;
+      row++
+    ) {
+      this.blockTile(
+        0,
+        row
+      );
+
+      this.blockTile(
+        this.columns - 1,
+        row
+      );
+    }
+  }
+
+  private blockTile(
+    col: number,
+    row: number
+  ) {
+    if (
+      row < 0 ||
+      row >= this.rows ||
+      col < 0 ||
+      col >= this.columns
+    ) {
+      return;
+    }
+
+    this.navigationGrid[
+      row
+    ][col] = false;
+  }
+
+  private worldToGrid(
+    x: number,
+    y: number
+  ): GridPoint {
+    return {
+      col:
+        Phaser.Math.Clamp(
+          Math.floor(
+            x /
+              this.tileSize
+          ),
+          0,
+          this.columns - 1
+        ),
+
+      row:
+        Phaser.Math.Clamp(
+          Math.floor(
+            y /
+              this.tileSize
+          ),
+          0,
+          this.rows - 1
+        ),
+    };
+  }
+
+  private gridToWorld(
+    point: GridPoint
+  ) {
+    return {
+      x:
+        point.col *
+          this.tileSize +
+        this.tileSize /
+          2,
+
+      y:
+        point.row *
+          this.tileSize +
+        this.tileSize /
+          2,
+    };
+  }
+
+  /*
+   * =========================================
+   * TEXTURES
+   * =========================================
+   */
+
+  private createTextures() {
+    if (
+      !this.textures.exists(
+        "player"
+      )
+    ) {
       const graphics =
         this.add.graphics();
 
@@ -143,11 +315,11 @@ export default class DungeonScene extends Phaser.Scene {
       graphics.destroy();
     }
 
-    /*
-     * WALL
-     */
-
-    if (!this.textures.exists("wall")) {
+    if (
+      !this.textures.exists(
+        "wall"
+      )
+    ) {
       const graphics =
         this.add.graphics();
 
@@ -197,11 +369,11 @@ export default class DungeonScene extends Phaser.Scene {
       graphics.destroy();
     }
 
-    /*
-     * ENEMY
-     */
-
-    if (!this.textures.exists("enemy")) {
+    if (
+      !this.textures.exists(
+        "enemy"
+      )
+    ) {
       const graphics =
         this.add.graphics();
 
@@ -227,10 +399,6 @@ export default class DungeonScene extends Phaser.Scene {
         18,
         16
       );
-
-      /*
-       * EYES
-       */
 
       graphics.fillStyle(
         0xffffff,
@@ -276,6 +444,12 @@ export default class DungeonScene extends Phaser.Scene {
     }
   }
 
+  /*
+   * =========================================
+   * DUNGEON
+   * =========================================
+   */
+
   private createDungeon() {
     this.createFloor();
 
@@ -287,92 +461,93 @@ export default class DungeonScene extends Phaser.Scene {
      */
 
     for (
-      let x = 32;
-      x < this.worldWidth;
-      x += 64
+      let col = 0;
+      col < this.columns;
+      col++
     ) {
-      this.createWall(
-        x,
-        32
+      this.createWallTile(
+        col,
+        0
       );
 
-      this.createWall(
-        x,
-        this.worldHeight - 32
+      this.createWallTile(
+        col,
+        this.rows - 1
       );
     }
 
     for (
-      let y = 96;
-      y < this.worldHeight - 64;
-      y += 64
+      let row = 1;
+      row <
+      this.rows - 1;
+      row++
     ) {
-      this.createWall(
-        32,
-        y
+      this.createWallTile(
+        0,
+        row
       );
 
-      this.createWall(
-        this.worldWidth - 32,
-        y
+      this.createWallTile(
+        this.columns - 1,
+        row
       );
     }
 
     /*
      * INTERNAL WALLS
+     *
+     * Sekarang semua tembok dibuat
+     * berdasarkan grid supaya visual,
+     * collision, dan pathfinding sinkron.
      */
 
     this.createHorizontalWall(
-      350,
-      450,
-      9
-    );
-
-    this.createHorizontalWall(
-      1150,
-      450,
-      10
-    );
-
-    this.createHorizontalWall(
-      500,
-      1050,
+      6,
+      7,
       8
     );
 
     this.createHorizontalWall(
-      1400,
-      1100,
+      18,
+      7,
+      10
+    );
+
+    this.createHorizontalWall(
+      8,
+      16,
+      8
+    );
+
+    this.createHorizontalWall(
+      22,
+      17,
       9
     );
 
     this.createVerticalWall(
-      600,
-      250,
+      9,
+      4,
       5
     );
 
     this.createVerticalWall(
-      1100,
-      650,
+      17,
+      10,
       7
     );
 
     this.createVerticalWall(
-      1800,
-      300,
+      28,
+      4,
       6
     );
 
     this.createVerticalWall(
-      700,
-      1150,
+      11,
+      18,
       5
     );
-
-    /*
-     * TORCHES
-     */
 
     this.createTorch(
       420,
@@ -416,62 +591,82 @@ export default class DungeonScene extends Phaser.Scene {
       this.worldHeight
     );
 
-    const tileSize = 64;
-
     for (
-      let y = 0;
-      y < this.worldHeight;
-      y += tileSize
+      let row = 0;
+      row < this.rows;
+      row++
     ) {
       for (
-        let x = 0;
-        x < this.worldWidth;
-        x += tileSize
+        let col = 0;
+        col <
+        this.columns;
+        col++
       ) {
-        const column =
-          Math.floor(
-            x / tileSize
-          );
-
-        const row =
-          Math.floor(
-            y / tileSize
-          );
-
-        const alternateTile =
-          (column + row) % 2 === 0;
+        const alternate =
+          (
+            col +
+            row
+          ) %
+            2 ===
+          0;
 
         graphics.fillStyle(
-          alternateTile
+          alternate
             ? 0x172127
             : 0x131c21,
           1
         );
 
         graphics.fillRect(
-          x + 2,
-          y + 2,
-          tileSize - 4,
-          tileSize - 4
+          col *
+            this.tileSize +
+            2,
+
+          row *
+            this.tileSize +
+            2,
+
+          this.tileSize -
+            4,
+
+          this.tileSize -
+            4
         );
       }
     }
   }
 
-  private createWall(
-    x: number,
-    y: number
+  private createWallTile(
+    col: number,
+    row: number
   ) {
+    const x =
+      col *
+        this.tileSize +
+      this.tileSize /
+        2;
+
+    const y =
+      row *
+        this.tileSize +
+      this.tileSize /
+        2;
+
     this.walls.create(
       x,
       y,
       "wall"
     );
+
+    this.blockTile(
+      col,
+      row
+    );
   }
 
   private createHorizontalWall(
-    startX: number,
-    y: number,
+    startCol: number,
+    row: number,
     amount: number
   ) {
     for (
@@ -479,16 +674,17 @@ export default class DungeonScene extends Phaser.Scene {
       i < amount;
       i++
     ) {
-      this.createWall(
-        startX + i * 64,
-        y
+      this.createWallTile(
+        startCol +
+          i,
+        row
       );
     }
   }
 
   private createVerticalWall(
-    x: number,
-    startY: number,
+    col: number,
+    startRow: number,
     amount: number
   ) {
     for (
@@ -496,9 +692,10 @@ export default class DungeonScene extends Phaser.Scene {
       i < amount;
       i++
     ) {
-      this.createWall(
-        x,
-        startY + i * 64
+      this.createWallTile(
+        col,
+        startRow +
+          i
       );
     }
   }
@@ -526,42 +723,69 @@ export default class DungeonScene extends Phaser.Scene {
       );
 
     this.tweens.add({
-      targets: glow,
+      targets:
+        glow,
 
       alpha: {
-        from: 0.04,
-        to: 0.18,
+        from:
+          0.04,
+
+        to:
+          0.18,
       },
 
       scale: {
-        from: 0.8,
-        to: 1.2,
+        from:
+          0.8,
+
+        to:
+          1.2,
       },
 
-      duration: 800,
-      yoyo: true,
-      repeat: -1,
+      duration:
+        800,
+
+      yoyo:
+        true,
+
+      repeat:
+        -1,
     });
 
     this.tweens.add({
-      targets: fire,
+      targets:
+        fire,
 
       scale: {
-        from: 0.8,
-        to: 1.15,
+        from:
+          0.8,
+
+        to:
+          1.15,
       },
 
-      duration: 400,
-      yoyo: true,
-      repeat: -1,
+      duration:
+        400,
+
+      yoyo:
+        true,
+
+      repeat:
+        -1,
     });
   }
+
+  /*
+   * =========================================
+   * PLAYER
+   * =========================================
+   */
 
   private createPlayer() {
     this.player =
       this.physics.add.sprite(
-        250,
-        250,
+        224,
+        224,
         "player"
       );
 
@@ -583,6 +807,12 @@ export default class DungeonScene extends Phaser.Scene {
       this.walls
     );
   }
+
+  /*
+   * =========================================
+   * ENEMIES
+   * =========================================
+   */
 
   private createEnemies() {
     this.enemies =
@@ -621,13 +851,16 @@ export default class DungeonScene extends Phaser.Scene {
     ];
 
     enemyPositions.forEach(
-      (position) => {
+      (
+        position,
+        index
+      ) => {
         const enemy =
           this.enemies.create(
             position.x,
             position.y,
             "enemy"
-          ) as Phaser.Physics.Arcade.Sprite;
+          ) as EnemySprite;
 
         enemy.setCollideWorldBounds(
           true
@@ -646,15 +879,248 @@ export default class DungeonScene extends Phaser.Scene {
         enemy.setDepth(
           9
         );
+
+        enemy.pathData =
+          [];
+
+        enemy.pathIndex =
+          0;
+
+        /*
+         * Bikin waktu update path berbeda
+         * supaya semua monster tidak
+         * menghitung A* di frame yang sama.
+         */
+
+        enemy.nextPathUpdate =
+          index * 80;
       }
     );
   }
+
+  private updateEnemies(
+    time: number
+  ) {
+    if (
+      !this.enemies ||
+      !this.player ||
+      !this.pathfinder
+    ) {
+      return;
+    }
+
+    this.enemies.children.each(
+      (child) => {
+        const enemy =
+          child as EnemySprite;
+
+        if (
+          !enemy.active
+        ) {
+          return true;
+        }
+
+        const distance =
+          Phaser.Math.Distance.Between(
+            enemy.x,
+            enemy.y,
+            this.player.x,
+            this.player.y
+          );
+
+        /*
+         * Di luar aggro range:
+         * monster diam.
+         */
+
+        if (
+          distance >
+          700
+        ) {
+          enemy.setVelocity(
+            0,
+            0
+          );
+
+          enemy.pathData =
+            [];
+
+          enemy.pathIndex =
+            0;
+
+          return true;
+        }
+
+        /*
+         * Hitung ulang path setiap
+         * kurang lebih 500ms.
+         */
+
+        if (
+          time >=
+          (
+            enemy.nextPathUpdate ??
+            0
+          )
+        ) {
+          this.calculateEnemyPath(
+            enemy
+          );
+
+          enemy.nextPathUpdate =
+            time +
+            450 +
+            Phaser.Math.Between(
+              0,
+              120
+            );
+        }
+
+        this.followEnemyPath(
+          enemy
+        );
+
+        return true;
+      }
+    );
+  }
+
+  private calculateEnemyPath(
+    enemy: EnemySprite
+  ) {
+    const start =
+      this.worldToGrid(
+        enemy.x,
+        enemy.y
+      );
+
+    const target =
+      this.worldToGrid(
+        this.player.x,
+        this.player.y
+      );
+
+    const path =
+      this.pathfinder.findPath(
+        start,
+        target
+      );
+
+    enemy.pathData =
+      path;
+
+    enemy.pathIndex =
+      0;
+  }
+
+  private followEnemyPath(
+    enemy: EnemySprite
+  ) {
+    const path =
+      enemy.pathData;
+
+    if (
+      !path ||
+      path.length === 0
+    ) {
+      enemy.setVelocity(
+        0,
+        0
+      );
+
+      return;
+    }
+
+    const index =
+      enemy.pathIndex ??
+      0;
+
+    if (
+      index >=
+      path.length
+    ) {
+      /*
+       * Kalau waypoint terakhir sudah
+       * tercapai dan player dekat,
+       * kejar langsung.
+       */
+
+      const distance =
+        Phaser.Math.Distance.Between(
+          enemy.x,
+          enemy.y,
+          this.player.x,
+          this.player.y
+        );
+
+      if (
+        distance <
+        100
+      ) {
+        this.physics.moveToObject(
+          enemy,
+          this.player,
+          this.enemySpeed
+        );
+      } else {
+        enemy.setVelocity(
+          0,
+          0
+        );
+      }
+
+      return;
+    }
+
+    const waypoint =
+      this.gridToWorld(
+        path[index]
+      );
+
+    const distanceToWaypoint =
+      Phaser.Math.Distance.Between(
+        enemy.x,
+        enemy.y,
+        waypoint.x,
+        waypoint.y
+      );
+
+    /*
+     * Sudah dekat pusat tile,
+     * lanjut waypoint berikutnya.
+     */
+
+    if (
+      distanceToWaypoint <
+      12
+    ) {
+      enemy.pathIndex =
+        index + 1;
+
+      return;
+    }
+
+    this.physics.moveTo(
+      enemy,
+      waypoint.x,
+      waypoint.y,
+      this.enemySpeed
+    );
+  }
+
+  /*
+   * =========================================
+   * CONTROLS
+   * =========================================
+   */
 
   private createControls() {
     const keyboard =
       this.input.keyboard;
 
-    if (!keyboard) {
+    if (
+      !keyboard
+    ) {
       return;
     }
 
@@ -686,6 +1152,12 @@ export default class DungeonScene extends Phaser.Scene {
           .KeyCodes.SPACE
       );
   }
+
+  /*
+   * =========================================
+   * CAMERA + UI
+   * =========================================
+   */
 
   private createCamera() {
     this.cameras.main.startFollow(
@@ -720,8 +1192,12 @@ export default class DungeonScene extends Phaser.Scene {
             "bold",
         }
       )
-      .setScrollFactor(0)
-      .setDepth(100);
+      .setScrollFactor(
+        0
+      )
+      .setDepth(
+        100
+      );
 
     this.hpText =
       this.add
@@ -743,8 +1219,12 @@ export default class DungeonScene extends Phaser.Scene {
               "bold",
           }
         )
-        .setScrollFactor(0)
-        .setDepth(100);
+        .setScrollFactor(
+          0
+        )
+        .setDepth(
+          100
+        );
 
     this.enemyText =
       this.add
@@ -763,8 +1243,12 @@ export default class DungeonScene extends Phaser.Scene {
               "#d0d6da",
           }
         )
-        .setScrollFactor(0)
-        .setDepth(100);
+        .setScrollFactor(
+          0
+        )
+        .setDepth(
+          100
+        );
 
     this.add
       .text(
@@ -782,8 +1266,12 @@ export default class DungeonScene extends Phaser.Scene {
             "#89959c",
         }
       )
-      .setScrollFactor(0)
-      .setDepth(100);
+      .setScrollFactor(
+        0
+      )
+      .setDepth(
+        100
+      );
 
     this.updateUI();
   }
@@ -809,6 +1297,12 @@ export default class DungeonScene extends Phaser.Scene {
     }
   }
 
+  /*
+   * =========================================
+   * PLAYER MOVEMENT
+   * =========================================
+   */
+
   private handlePlayerMovement() {
     if (
       !this.player ||
@@ -818,35 +1312,42 @@ export default class DungeonScene extends Phaser.Scene {
       return;
     }
 
-    let velocityX = 0;
-    let velocityY = 0;
+    let velocityX =
+      0;
+
+    let velocityY =
+      0;
 
     if (
       this.cursors.left.isDown ||
       this.wasd.A.isDown
     ) {
-      velocityX = -1;
+      velocityX =
+        -1;
     }
 
     if (
       this.cursors.right.isDown ||
       this.wasd.D.isDown
     ) {
-      velocityX = 1;
+      velocityX =
+        1;
     }
 
     if (
       this.cursors.up.isDown ||
       this.wasd.W.isDown
     ) {
-      velocityY = -1;
+      velocityY =
+        -1;
     }
 
     if (
       this.cursors.down.isDown ||
       this.wasd.S.isDown
     ) {
-      velocityY = 1;
+      velocityY =
+        1;
     }
 
     const direction =
@@ -856,7 +1357,8 @@ export default class DungeonScene extends Phaser.Scene {
       );
 
     if (
-      direction.length() > 0
+      direction.length() >
+      0
     ) {
       direction.normalize();
 
@@ -875,52 +1377,11 @@ export default class DungeonScene extends Phaser.Scene {
     }
   }
 
-  private updateEnemies() {
-    if (
-      !this.enemies ||
-      !this.player
-    ) {
-      return;
-    }
-
-    this.enemies.children.each(
-      (child) => {
-        const enemy =
-          child as Phaser.Physics.Arcade.Sprite;
-
-        if (
-          !enemy.active
-        ) {
-          return true;
-        }
-
-        const distance =
-          Phaser.Math.Distance.Between(
-            enemy.x,
-            enemy.y,
-            this.player.x,
-            this.player.y
-          );
-
-        if (
-          distance < 500
-        ) {
-          this.physics.moveToObject(
-            enemy,
-            this.player,
-            this.enemySpeed
-          );
-        } else {
-          enemy.setVelocity(
-            0,
-            0
-          );
-        }
-
-        return true;
-      }
-    );
-  }
+  /*
+   * =========================================
+   * DAMAGE
+   * =========================================
+   */
 
   private damagePlayer(
     enemy:
@@ -940,12 +1401,15 @@ export default class DungeonScene extends Phaser.Scene {
     this.lastDamageTime =
       currentTime;
 
-    this.playerHP -= 10;
+    this.playerHP -=
+      10;
 
     if (
-      this.playerHP < 0
+      this.playerHP <
+      0
     ) {
-      this.playerHP = 0;
+      this.playerHP =
+        0;
     }
 
     this.player.setTint(
@@ -973,11 +1437,14 @@ export default class DungeonScene extends Phaser.Scene {
       );
 
     if (
-      knockback.length() > 0
+      knockback.length() >
+      0
     ) {
       knockback
         .normalize()
-        .scale(220);
+        .scale(
+          220
+        );
 
       this.player.setVelocity(
         knockback.x,
@@ -988,11 +1455,18 @@ export default class DungeonScene extends Phaser.Scene {
     this.updateUI();
 
     if (
-      this.playerHP <= 0
+      this.playerHP <=
+      0
     ) {
       this.gameOver();
     }
   }
+
+  /*
+   * =========================================
+   * ATTACK
+   * =========================================
+   */
 
   private playerAttack(
     time: number
@@ -1049,7 +1523,7 @@ export default class DungeonScene extends Phaser.Scene {
     this.enemies.children.each(
       (child) => {
         const enemy =
-          child as Phaser.Physics.Arcade.Sprite;
+          child as EnemySprite;
 
         if (
           !enemy.active
@@ -1066,7 +1540,8 @@ export default class DungeonScene extends Phaser.Scene {
           );
 
         if (
-          distance <= 85
+          distance <=
+          85
         ) {
           this.damageEnemy(
             enemy
@@ -1079,8 +1554,7 @@ export default class DungeonScene extends Phaser.Scene {
   }
 
   private damageEnemy(
-    enemy:
-      Phaser.Physics.Arcade.Sprite
+    enemy: EnemySprite
   ) {
     const currentHP =
       enemy.getData(
@@ -1088,7 +1562,8 @@ export default class DungeonScene extends Phaser.Scene {
       ) as number;
 
     const newHP =
-      currentHP - 1;
+      currentHP -
+      1;
 
     enemy.setData(
       "hp",
@@ -1110,30 +1585,9 @@ export default class DungeonScene extends Phaser.Scene {
       }
     );
 
-    const knockback =
-      new Phaser.Math.Vector2(
-        enemy.x -
-          this.player.x,
-
-        enemy.y -
-          this.player.y
-      );
-
     if (
-      knockback.length() > 0
-    ) {
-      knockback
-        .normalize()
-        .scale(250);
-
-      enemy.setVelocity(
-        knockback.x,
-        knockback.y
-      );
-    }
-
-    if (
-      newHP <= 0
+      newHP <=
+      0
     ) {
       this.killEnemy(
         enemy
@@ -1142,8 +1596,7 @@ export default class DungeonScene extends Phaser.Scene {
   }
 
   private killEnemy(
-    enemy:
-      Phaser.Physics.Arcade.Sprite
+    enemy: EnemySprite
   ) {
     const deathEffect =
       this.add.circle(
@@ -1182,6 +1635,12 @@ export default class DungeonScene extends Phaser.Scene {
     this.updateUI();
   }
 
+  /*
+   * =========================================
+   * GAME OVER
+   * =========================================
+   */
+
   private gameOver() {
     this.physics.pause();
 
@@ -1194,9 +1653,14 @@ export default class DungeonScene extends Phaser.Scene {
 
     this.add
       .text(
-        camera.width / 2,
-        camera.height / 2,
+        camera.width /
+          2,
+
+        camera.height /
+          2,
+
         "YOU DIED",
+
         {
           fontFamily:
             "Arial",
