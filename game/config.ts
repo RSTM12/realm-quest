@@ -1,12 +1,17 @@
 import * as Phaser from "phaser";
 
-export const gameConfig: Phaser.Types.Core.GameConfig = {
+import BaseScene from "@/game/scenes/BaseScene";
+import DungeonScene from "@/game/scenes/DungeonScene";
+
+const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
 
-  width: 1280,
-  height: 720,
+  width: 1600,
+  height: 900,
 
-  backgroundColor: "#0b1116",
+  backgroundColor: "#080c0f",
+
+  parent: "game-container",
 
   physics: {
     default: "arcade",
@@ -23,6 +28,18 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
 
   scale: {
     mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
+
+    autoCenter:
+      Phaser.Scale.CENTER_BOTH,
+
+    width: 1600,
+    height: 900,
   },
+
+  scene: [
+    DungeonScene,
+    BaseScene,
+  ],
 };
+
+export default gameConfig;
