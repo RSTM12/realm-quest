@@ -133,7 +133,18 @@ export default class LootSystem {
       );
 
     /*
-     * Spawn di posisi monster mati.
+     * Cari posisi jatuh yang aman.
+     */
+
+    const safePosition =
+      this.findSafeDropPosition(
+        x,
+        y
+      );
+
+    /*
+     * Loot tetap mulai dari
+     * posisi monster mati.
      */
 
     const loot =
@@ -146,10 +157,6 @@ export default class LootSystem {
     loot.lootData = {
       ...item,
     };
-
-    /*
-     * Belum boleh diambil.
-     */
 
     loot.canPickup =
       false;
@@ -164,40 +171,6 @@ export default class LootSystem {
     );
 
     /*
-     * Pilih posisi jatuh.
-     *
-     * Dibuat cukup jauh dari player
-     * yang kemungkinan sedang berdiri
-     * dekat monster.
-     */
-
-    const angle =
-      Phaser.Math.FloatBetween(
-        0,
-        Math.PI * 2
-      );
-
-    const distance =
-      Phaser.Math.Between(
-        55,
-        90
-      );
-
-    const targetX =
-      x +
-      Math.cos(
-        angle
-      ) *
-        distance;
-
-    const targetY =
-      y +
-      Math.sin(
-        angle
-      ) *
-        distance;
-
-    /*
      * Mulai kecil.
      */
 
@@ -206,7 +179,8 @@ export default class LootSystem {
     );
 
     /*
-     * Animasi item terpental keluar.
+     * Animasi terpental menuju
+     * posisi lantai yang aman.
      */
 
     this.scene.tweens.add({
@@ -214,10 +188,10 @@ export default class LootSystem {
         loot,
 
       x:
-        targetX,
+        safePosition.x,
 
       y:
-        targetY,
+        safePosition.y,
 
       scale:
         1,
@@ -230,10 +204,11 @@ export default class LootSystem {
 
       onComplete:
         () => {
-          /*
-           * Pastikan body physics
-           * mengikuti posisi terbaru.
-           */
+          if (
+            !loot.active
+          ) {
+            return;
+          }
 
           const body =
             loot.body as
@@ -248,11 +223,6 @@ export default class LootSystem {
             );
           }
 
-          /*
-           * Mulai animasi floating
-           * setelah item selesai jatuh.
-           */
-
           this.startFloatingAnimation(
             loot
           );
@@ -260,11 +230,11 @@ export default class LootSystem {
     });
 
     /*
-     * Pickup baru aktif setelah 800ms.
+     * Pickup aktif setelah animasi.
      */
 
     this.scene.time.delayedCall(
-      800,
+      600,
       () => {
         if (
           loot.active
@@ -276,6 +246,343 @@ export default class LootSystem {
     );
 
     return loot;
+  }
+
+  /*
+   * =========================================
+   * FIND SAFE DROP POSITION
+   * =========================================
+   */
+
+  private findSafeDropPosition(
+    originX: number,
+    originY: number
+  ): {
+    x: number;
+    y: number;
+  } {
+    /*
+     * Kita coba beberapa lingkaran
+     * di sekitar monster.
+     *
+     * Jarak minimum dibuat 48px supaya
+     * item tidak terlalu dekat tembok
+     * maupun posisi monster.
+     */
+
+    const distances = [
+      55,
+      70,
+      85,
+      100,
+      120,
+    ];
+
+    /*
+     * Mulai dari arah random supaya
+     * loot tidak selalu terbang ke
+     * arah yang sama.
+     */
+
+    const randomStartAngle =
+      Phaser.Math.FloatBetween(
+        0,
+        Math.PI * 2
+      );
+
+    /*
+     * Coba 16 arah pada setiap jarak.
+     */
+
+    for (
+      const distance
+      of distances
+    ) {
+      for (
+        let i = 0;
+        i < 16;
+        i++
+      ) {
+        const angle =
+          randomStartAngle +
+          (
+            Math.PI *
+            2 *
+            i
+          ) /
+            16;
+
+        const candidateX =
+          originX +
+          Math.cos(
+            angle
+          ) *
+            distance;
+
+        const candidateY =
+          originY +
+          Math.sin(
+            angle
+          ) *
+            distance;
+
+        if (
+          this.isSafePosition(
+            candidateX,
+            candidateY
+          )
+        ) {
+          return {
+            x:
+              candidateX,
+
+            y:
+              candidateY,
+          };
+        }
+      }
+    }
+
+    /*
+     * Kalau monster mati di lokasi
+     * yang sangat sempit, scan area
+     * lebih luas berbentuk grid.
+     */
+
+    const scanDistances = [
+      32,
+      64,
+      96,
+      128,
+      160,
+    ];
+
+    for (
+      const distance
+      of scanDistances
+    ) {
+      const positions = [
+        {
+          x:
+            originX +
+            distance,
+
+          y:
+            originY,
+        },
+
+        {
+          x:
+            originX -
+            distance,
+
+          y:
+            originY,
+        },
+
+        {
+          x:
+            originX,
+
+          y:
+            originY +
+            distance,
+        },
+
+        {
+          x:
+            originX,
+
+          y:
+            originY -
+            distance,
+        },
+
+        {
+          x:
+            originX +
+            distance,
+
+          y:
+            originY +
+            distance,
+        },
+
+        {
+          x:
+            originX -
+            distance,
+
+          y:
+            originY +
+            distance,
+        },
+
+        {
+          x:
+            originX +
+            distance,
+
+          y:
+            originY -
+            distance,
+        },
+
+        {
+          x:
+            originX -
+            distance,
+
+          y:
+            originY -
+            distance,
+        },
+      ];
+
+      for (
+        const position
+        of positions
+      ) {
+        if (
+          this.isSafePosition(
+            position.x,
+            position.y
+          )
+        ) {
+          return position;
+        }
+      }
+    }
+
+    /*
+     * Fallback terakhir.
+     *
+     * Kalau tidak ditemukan posisi,
+     * pakai posisi awal.
+     */
+
+    return {
+      x:
+        originX,
+
+      y:
+        originY,
+    };
+  }
+
+  /*
+   * =========================================
+   * CHECK SAFE POSITION
+   * =========================================
+   */
+
+  private isSafePosition(
+    x: number,
+    y: number
+  ): boolean {
+    /*
+     * Jangan spawn terlalu dekat
+     * batas dunia.
+     */
+
+    const worldBounds =
+      this.scene.physics.world.bounds;
+
+    const margin =
+      32;
+
+    if (
+      x <
+        worldBounds.left +
+          margin ||
+      x >
+        worldBounds.right -
+          margin ||
+      y <
+        worldBounds.top +
+          margin ||
+      y >
+        worldBounds.bottom -
+          margin
+    ) {
+      return false;
+    }
+
+    /*
+     * Area yang harus kosong.
+     *
+     * Lebih besar dari body loot
+     * supaya loot tidak menempel
+     * di pinggir tembok.
+     */
+
+    const safeRadius =
+      28;
+
+    const checkArea =
+      new Phaser.Geom.Rectangle(
+        x -
+          safeRadius,
+
+        y -
+          safeRadius,
+
+        safeRadius *
+          2,
+
+        safeRadius *
+          2
+      );
+
+    /*
+     * Cek semua body physics statis.
+     *
+     * Dungeon wall kita adalah
+     * StaticGroup, jadi tembok akan
+     * ditemukan lewat staticBodies.
+     */
+
+    const staticBodies =
+      this.scene.physics.world
+        .staticBodies;
+
+    for (
+      let i = 0;
+      i <
+      staticBodies.entries.length;
+      i++
+    ) {
+      const body =
+        staticBodies.entries[
+          i
+        ];
+
+      if (
+        !body ||
+        !body.enable
+      ) {
+        continue;
+      }
+
+      const bodyRect =
+        new Phaser.Geom.Rectangle(
+          body.x,
+          body.y,
+          body.width,
+          body.height
+        );
+
+      if (
+        Phaser.Geom.Intersects.RectangleToRectangle(
+          checkArea,
+          bodyRect
+        )
+      ) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /*
@@ -298,7 +605,8 @@ export default class LootSystem {
         loot,
 
       y:
-        loot.y - 5,
+        loot.y -
+        5,
 
       duration:
         700,
@@ -330,6 +638,7 @@ export default class LootSystem {
         ) =>
           total +
           entry.weight,
+
         0
       );
 
