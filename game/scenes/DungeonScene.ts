@@ -14,6 +14,8 @@ import LootSystem, {
 
 import InventorySystem from "@/game/inventory/InventorySystem";
 
+import InventoryUI from "@/game/inventory/InventoryUI";
+
 export default class DungeonScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
   private walls!: Phaser.Physics.Arcade.StaticGroup;
@@ -24,6 +26,8 @@ export default class DungeonScene extends Phaser.Scene {
   private lootSystem!: LootSystem;
 
   private inventory!: InventorySystem;
+
+  private inventoryUI!: InventoryUI;
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
 
@@ -38,12 +42,6 @@ export default class DungeonScene extends Phaser.Scene {
 
   private hpText!: Phaser.GameObjects.Text;
   private enemyText!: Phaser.GameObjects.Text;
-
-  private inventoryTitleText!: Phaser.GameObjects.Text;
-  private inventoryContentText!: Phaser.GameObjects.Text;
-  private inventoryValueText!: Phaser.GameObjects.Text;
-
-  private inventoryBackground!: Phaser.GameObjects.Rectangle;
 
   private playerHP = 100;
 
@@ -109,9 +107,9 @@ export default class DungeonScene extends Phaser.Scene {
     this.createPlayer();
 
     /*
-     * INVENTORY
-     *
-     * Player punya 8 slot.
+     * =========================================
+     * INVENTORY SYSTEM
+     * =========================================
      */
 
     this.inventory =
@@ -120,7 +118,9 @@ export default class DungeonScene extends Phaser.Scene {
       );
 
     /*
+     * =========================================
      * LOOT SYSTEM
+     * =========================================
      */
 
     this.lootSystem =
@@ -135,6 +135,17 @@ export default class DungeonScene extends Phaser.Scene {
     this.createCamera();
 
     this.createUI();
+
+    /*
+     * Inventory visual dibuat
+     * setelah camera siap.
+     */
+
+    this.inventoryUI =
+      new InventoryUI(
+        this,
+        this.inventory
+      );
 
     /*
      * =========================================
@@ -1092,10 +1103,6 @@ export default class DungeonScene extends Phaser.Scene {
    */
 
   private createUI() {
-    /*
-     * LEFT HUD
-     */
-
     this.add
       .text(
         24,
@@ -1196,118 +1203,6 @@ export default class DungeonScene extends Phaser.Scene {
         100
       );
 
-    /*
-     * =========================================
-     * INVENTORY PANEL
-     * =========================================
-     */
-
-    const cameraWidth =
-      this.cameras.main.width;
-
-    this.inventoryBackground =
-      this.add
-        .rectangle(
-          cameraWidth - 170,
-          145,
-          300,
-          250,
-          0x080c0f,
-          0.88
-        )
-        .setStrokeStyle(
-          2,
-          0x3c474d,
-          1
-        )
-        .setScrollFactor(
-          0
-        )
-        .setDepth(
-          99
-        );
-
-    this.inventoryTitleText =
-      this.add
-        .text(
-          cameraWidth - 300,
-          38,
-          "",
-          {
-            fontFamily:
-              "Arial",
-
-            fontSize:
-              "18px",
-
-            color:
-              "#d9a84e",
-
-            fontStyle:
-              "bold",
-          }
-        )
-        .setScrollFactor(
-          0
-        )
-        .setDepth(
-          100
-        );
-
-    this.inventoryContentText =
-      this.add
-        .text(
-          cameraWidth - 300,
-          72,
-          "",
-          {
-            fontFamily:
-              "Arial",
-
-            fontSize:
-              "14px",
-
-            color:
-              "#d0d6da",
-
-            lineSpacing:
-              7,
-          }
-        )
-        .setScrollFactor(
-          0
-        )
-        .setDepth(
-          100
-        );
-
-    this.inventoryValueText =
-      this.add
-        .text(
-          cameraWidth - 300,
-          245,
-          "",
-          {
-            fontFamily:
-              "Arial",
-
-            fontSize:
-              "14px",
-
-            color:
-              "#ffd166",
-
-            fontStyle:
-              "bold",
-          }
-        )
-        .setScrollFactor(
-          0
-        )
-        .setDepth(
-          100
-        );
-
     this.updateUI();
   }
 
@@ -1331,85 +1226,16 @@ export default class DungeonScene extends Phaser.Scene {
       );
     }
 
-    this.updateInventoryUI();
-  }
-
-  /*
-   * =========================================
-   * INVENTORY UI
-   * =========================================
-   */
-
-  private updateInventoryUI() {
-    if (
-      !this.inventory ||
-      !this.inventoryTitleText ||
-      !this.inventoryContentText ||
-      !this.inventoryValueText
-    ) {
-      return;
-    }
-
-    const slots =
-      this.inventory.getSlots();
-
-    const usedSlots =
-      this.inventory.getUsedSlots();
-
-    const maxSlots =
-      this.inventory.getMaxSlots();
-
-    this.inventoryTitleText.setText(
-      `INVENTORY  ${usedSlots}/${maxSlots}`
-    );
-
     /*
-     * Tampilkan semua 8 slot.
+     * Update visual inventory
+     * kalau sudah dibuat.
      */
 
-    const lines:
-      string[] = [];
-
-    for (
-      let i = 0;
-      i < maxSlots;
-      i++
+    if (
+      this.inventoryUI
     ) {
-      const slot =
-        slots[
-          i
-        ];
-
-      if (
-        !slot
-      ) {
-        lines.push(
-          `${i + 1}. [ Empty ]`
-        );
-
-        continue;
-      }
-
-      const quantityText =
-        slot.quantity >
-        1
-          ? ` x${slot.quantity}`
-          : "";
-
-      lines.push(
-        `${i + 1}. ${slot.item.name}${quantityText}`
-      );
+      this.inventoryUI.update();
     }
-
-    this.inventoryContentText.setText(
-      lines.join(
-        "\n"
-      )
-    );
-
-    this.inventoryValueText.setText(
-      `Run Value: ${this.inventory.getTotalValue()}`
-    );
   }
 
   /*
@@ -1511,6 +1337,11 @@ export default class DungeonScene extends Phaser.Scene {
     ) {
       return;
     }
+
+    /*
+     * Monster yang sedang balik
+     * ke spawn tidak bisa damage.
+     */
 
     if (
       enemy.enemyState ===
@@ -1706,6 +1537,11 @@ export default class DungeonScene extends Phaser.Scene {
       }
     );
 
+    /*
+     * Serang monster idle =
+     * monster langsung aggro.
+     */
+
     if (
       enemy.enemyState ===
       "idle"
@@ -1800,7 +1636,8 @@ export default class DungeonScene extends Phaser.Scene {
     }
 
     /*
-     * Tunggu pickup delay selesai.
+     * Loot belum boleh diambil
+     * selama animasi drop.
      */
 
     if (
@@ -1821,8 +1658,7 @@ export default class DungeonScene extends Phaser.Scene {
     }
 
     /*
-     * Coba masukkan item
-     * ke inventory.
+     * Coba masuk inventory.
      */
 
     const added =
@@ -1831,10 +1667,8 @@ export default class DungeonScene extends Phaser.Scene {
       );
 
     /*
-     * INVENTORY PENUH
-     *
-     * Loot tidak dihancurkan.
-     * Jadi tetap ada di tanah.
+     * Kalau penuh,
+     * item tetap di tanah.
      */
 
     if (
@@ -1863,23 +1697,22 @@ export default class DungeonScene extends Phaser.Scene {
 
     loot.destroy();
 
+    /*
+     * Refresh visual inventory.
+     */
+
+    this.inventoryUI.update();
+
     this.updateUI();
   }
 
   /*
    * =========================================
-   * INVENTORY FULL MESSAGE
+   * INVENTORY FULL
    * =========================================
    */
 
   private showInventoryFull() {
-    /*
-     * Overlap berjalan setiap frame.
-     *
-     * Cooldown mencegah ratusan
-     * tulisan muncul sekaligus.
-     */
-
     if (
       this.inventoryFullMessageCooldown
     ) {
@@ -2064,11 +1897,17 @@ export default class DungeonScene extends Phaser.Scene {
     );
 
     /*
-     * Untuk sistem extraction:
-     * loot selama run hilang saat mati.
+     * Semua loot run hilang
+     * kalau player mati.
      */
 
     this.inventory.clear();
+
+    /*
+     * Kosongkan visual inventory.
+     */
+
+    this.inventoryUI.update();
 
     this.updateUI();
 
