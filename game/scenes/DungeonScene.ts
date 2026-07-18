@@ -16,6 +16,8 @@ import InventorySystem from "@/game/inventory/InventorySystem";
 
 import InventoryUI from "@/game/inventory/InventoryUI";
 
+import ExtractionSystem from "@/game/extraction/ExtractionSystem";
+
 export default class DungeonScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
   private walls!: Phaser.Physics.Arcade.StaticGroup;
@@ -28,6 +30,8 @@ export default class DungeonScene extends Phaser.Scene {
   private inventory!: InventorySystem;
 
   private inventoryUI!: InventoryUI;
+
+  private extractionSystem!: ExtractionSystem;
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
 
@@ -74,6 +78,8 @@ export default class DungeonScene extends Phaser.Scene {
 
   private inventoryFullMessageCooldown = false;
 
+  private runFinished = false;
+
   constructor() {
     super("DungeonScene");
   }
@@ -108,7 +114,7 @@ export default class DungeonScene extends Phaser.Scene {
 
     /*
      * =========================================
-     * INVENTORY SYSTEM
+     * INVENTORY
      * =========================================
      */
 
@@ -119,7 +125,7 @@ export default class DungeonScene extends Phaser.Scene {
 
     /*
      * =========================================
-     * LOOT SYSTEM
+     * LOOT
      * =========================================
      */
 
@@ -128,24 +134,77 @@ export default class DungeonScene extends Phaser.Scene {
         this
       );
 
+    /*
+     * =========================================
+     * ENEMIES
+     * =========================================
+     */
+
     this.createEnemies();
+
+    /*
+     * =========================================
+     * CONTROLS
+     * =========================================
+     */
 
     this.createControls();
 
+    /*
+     * =========================================
+     * CAMERA
+     * =========================================
+     */
+
     this.createCamera();
 
-    this.createUI();
-
     /*
-     * Inventory visual dibuat
-     * setelah camera siap.
+     * =========================================
+     * UI
+     * =========================================
      */
+
+    this.createUI();
 
     this.inventoryUI =
       new InventoryUI(
         this,
         this.inventory
       );
+
+    /*
+     * =========================================
+     * EXTRACTION
+     * =========================================
+     *
+     * Portal berada di sisi kanan bawah map.
+     */
+
+    this.extractionSystem =
+      new ExtractionSystem({
+        scene:
+          this,
+
+        player:
+          this.player,
+
+        x:
+          2200,
+
+        y:
+          1350,
+
+        radius:
+          100,
+
+        extractionTime:
+          2500,
+
+        onExtract:
+          () => {
+            this.completeRun();
+          },
+      });
 
     /*
      * =========================================
@@ -176,6 +235,12 @@ export default class DungeonScene extends Phaser.Scene {
         _playerObject,
         enemyObject
       ) => {
+        if (
+          this.runFinished
+        ) {
+          return;
+        }
+
         const enemy =
           enemyObject as EnemySprite;
 
@@ -198,6 +263,12 @@ export default class DungeonScene extends Phaser.Scene {
         _playerObject,
         lootObject
       ) => {
+        if (
+          this.runFinished
+        ) {
+          return;
+        }
+
         const loot =
           lootObject as LootSprite;
 
@@ -208,12 +279,38 @@ export default class DungeonScene extends Phaser.Scene {
     );
   }
 
-  update(time: number) {
+  update(
+    time: number,
+    delta: number
+  ) {
+    /*
+     * Setelah run selesai,
+     * semua gameplay berhenti.
+     */
+
+    if (
+      this.runFinished
+    ) {
+      return;
+    }
+
     this.handlePlayerMovement();
 
     this.updateEnemyAI(
       time
     );
+
+    /*
+     * Update extraction.
+     */
+
+    this.extractionSystem.update(
+      delta
+    );
+
+    /*
+     * Attack.
+     */
 
     if (
       this.attackKey &&
@@ -1184,7 +1281,7 @@ export default class DungeonScene extends Phaser.Scene {
       .text(
         24,
         116,
-        "WASD: Move | SPACE: Attack",
+        "WASD: Move | SPACE: Attack | E: Extract",
         {
           fontFamily:
             "Arial",
@@ -1225,11 +1322,6 @@ export default class DungeonScene extends Phaser.Scene {
         )}`
       );
     }
-
-    /*
-     * Update visual inventory
-     * kalau sudah dibuat.
-     */
 
     if (
       this.inventoryUI
@@ -1337,11 +1429,6 @@ export default class DungeonScene extends Phaser.Scene {
     ) {
       return;
     }
-
-    /*
-     * Monster yang sedang balik
-     * ke spawn tidak bisa damage.
-     */
 
     if (
       enemy.enemyState ===
@@ -1537,11 +1624,6 @@ export default class DungeonScene extends Phaser.Scene {
       }
     );
 
-    /*
-     * Serang monster idle =
-     * monster langsung aggro.
-     */
-
     if (
       enemy.enemyState ===
       "idle"
@@ -1635,11 +1717,6 @@ export default class DungeonScene extends Phaser.Scene {
       return;
     }
 
-    /*
-     * Loot belum boleh diambil
-     * selama animasi drop.
-     */
-
     if (
       !loot.canPickup
     ) {
@@ -1657,18 +1734,14 @@ export default class DungeonScene extends Phaser.Scene {
       return;
     }
 
-    /*
-     * Coba masuk inventory.
-     */
-
     const added =
       this.inventory.addItem(
         item
       );
 
     /*
-     * Kalau penuh,
-     * item tetap di tanah.
+     * Inventory penuh.
+     * Item tetap di tanah.
      */
 
     if (
@@ -1678,10 +1751,6 @@ export default class DungeonScene extends Phaser.Scene {
 
       return;
     }
-
-    /*
-     * Pickup berhasil.
-     */
 
     loot.canPickup =
       false;
@@ -1696,10 +1765,6 @@ export default class DungeonScene extends Phaser.Scene {
     );
 
     loot.destroy();
-
-    /*
-     * Refresh visual inventory.
-     */
 
     this.inventoryUI.update();
 
@@ -1885,11 +1950,299 @@ export default class DungeonScene extends Phaser.Scene {
 
   /*
    * =========================================
+   * COMPLETE RUN
+   * =========================================
+   */
+
+  private completeRun() {
+    if (
+      this.runFinished
+    ) {
+      return;
+    }
+
+    this.runFinished =
+      true;
+
+    /*
+     * Hentikan semua movement.
+     */
+
+    this.player.setVelocity(
+      0,
+      0
+    );
+
+    this.enemies.children.each(
+      (child) => {
+        const enemy =
+          child as EnemySprite;
+
+        if (
+          enemy.active
+        ) {
+          enemy.setVelocity(
+            0,
+            0
+          );
+        }
+
+        return true;
+      }
+    );
+
+    /*
+     * Ambil snapshot loot sebelum
+     * nantinya dipindahkan ke stash.
+     */
+
+    const extractedSlots =
+      this.inventory.getSlots();
+
+    const totalValue =
+      this.inventory.getTotalValue();
+
+    const totalItems =
+      this.inventory.getTotalItemCount();
+
+    /*
+     * Overlay gelap.
+     */
+
+    const camera =
+      this.cameras.main;
+
+    this.add
+      .rectangle(
+        camera.width /
+          2,
+
+        camera.height /
+          2,
+
+        camera.width,
+
+        camera.height,
+
+        0x050809,
+
+        0.9
+      )
+      .setScrollFactor(
+        0
+      )
+      .setDepth(
+        2000
+      );
+
+    /*
+     * Result title.
+     */
+
+    this.add
+      .text(
+        camera.width /
+          2,
+
+        100,
+
+        "EXTRACTION SUCCESS",
+
+        {
+          fontFamily:
+            "Arial",
+
+          fontSize:
+            "38px",
+
+          color:
+            "#65f5df",
+
+          fontStyle:
+            "bold",
+
+          stroke:
+            "#000000",
+
+          strokeThickness:
+            6,
+        }
+      )
+      .setOrigin(
+        0.5
+      )
+      .setScrollFactor(
+        0
+      )
+      .setDepth(
+        2001
+      );
+
+    /*
+     * Summary.
+     */
+
+    this.add
+      .text(
+        camera.width /
+          2,
+
+        155,
+
+        `${totalItems} items secured  •  Total Value: ${totalValue}`,
+
+        {
+          fontFamily:
+            "Arial",
+
+          fontSize:
+            "18px",
+
+          color:
+            "#ffd166",
+        }
+      )
+      .setOrigin(
+        0.5
+      )
+      .setScrollFactor(
+        0
+      )
+      .setDepth(
+        2001
+      );
+
+    /*
+     * Loot result list.
+     */
+
+    const resultLines:
+      string[] = [];
+
+    if (
+      extractedSlots.length ===
+      0
+    ) {
+      resultLines.push(
+        "No loot extracted."
+      );
+    } else {
+      extractedSlots.forEach(
+        (
+          slot,
+          index
+        ) => {
+          const quantity =
+            slot.quantity >
+            1
+              ? ` x${slot.quantity}`
+              : "";
+
+          const value =
+            slot.item.value *
+            slot.quantity;
+
+          resultLines.push(
+            `${index + 1}. ${slot.item.name}${quantity}  —  ${value} value`
+          );
+        }
+      );
+    }
+
+    this.add
+      .text(
+        camera.width /
+          2,
+
+        220,
+
+        resultLines.join(
+          "\n"
+        ),
+
+        {
+          fontFamily:
+            "Arial",
+
+          fontSize:
+            "17px",
+
+          color:
+            "#d0d6da",
+
+          align:
+            "left",
+
+          lineSpacing:
+            12,
+        }
+      )
+      .setOrigin(
+        0.5,
+        0
+      )
+      .setScrollFactor(
+        0
+      )
+      .setDepth(
+        2001
+      );
+
+    /*
+     * Status sementara.
+     *
+     * Next nanti loot ini benar-benar
+     * dipindahkan ke permanent stash.
+     */
+
+    this.add
+      .text(
+        camera.width /
+          2,
+
+        camera.height -
+          80,
+
+        "Loot secured. Permanent stash coming next.",
+
+        {
+          fontFamily:
+            "Arial",
+
+          fontSize:
+            "14px",
+
+          color:
+            "#89959c",
+        }
+      )
+      .setOrigin(
+        0.5
+      )
+      .setScrollFactor(
+        0
+      )
+      .setDepth(
+        2001
+      );
+  }
+
+  /*
+   * =========================================
    * GAME OVER
    * =========================================
    */
 
   private gameOver() {
+    if (
+      this.runFinished
+    ) {
+      return;
+    }
+
+    this.runFinished =
+      true;
+
     this.physics.pause();
 
     this.player.setTint(
@@ -1897,15 +2250,10 @@ export default class DungeonScene extends Phaser.Scene {
     );
 
     /*
-     * Semua loot run hilang
-     * kalau player mati.
+     * Loot run hilang kalau mati.
      */
 
     this.inventory.clear();
-
-    /*
-     * Kosongkan visual inventory.
-     */
 
     this.inventoryUI.update();
 
@@ -1951,7 +2299,7 @@ export default class DungeonScene extends Phaser.Scene {
         0
       )
       .setDepth(
-        1000
+        3000
       );
   }
 }
