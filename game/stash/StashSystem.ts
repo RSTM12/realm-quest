@@ -7,19 +7,40 @@ export type StashSlot = {
   quantity: number;
 };
 
+export type PlayerLoadout = {
+  weapon: LootItem | null;
+  armor: LootItem | null;
+};
+
 type SavedStashData = {
   slots: StashSlot[];
+};
+
+type SavedLoadoutData = {
+  weapon: LootItem | null;
+  armor: LootItem | null;
 };
 
 export default class StashSystem {
   private slots:
     StashSlot[] = [];
 
+  private loadout:
+    PlayerLoadout = {
+      weapon: null,
+      armor: null,
+    };
+
   private readonly storageKey =
     "realm_quest_stash";
 
+  private readonly loadoutStorageKey =
+    "realm_quest_loadout";
+
   constructor() {
     this.load();
+
+    this.loadLoadout();
   }
 
   /*
@@ -32,25 +53,19 @@ export default class StashSystem {
     item: LootItem,
     quantity = 1
   ) {
-    /*
-     * Cari item yang sama.
-     */
+    if (
+      quantity <=
+      0
+    ) {
+      return;
+    }
 
     const existingSlot =
       this.slots.find(
         (slot) =>
-          slot.item.name ===
-            item.name &&
-          slot.item.type ===
-            item.type &&
-          slot.item.rarity ===
-            item.rarity
+          slot.item.id ===
+          item.id
       );
-
-    /*
-     * Kalau sudah ada,
-     * tambah quantity.
-     */
 
     if (
       existingSlot
@@ -58,10 +73,6 @@ export default class StashSystem {
       existingSlot.quantity +=
         quantity;
     } else {
-      /*
-       * Item baru.
-       */
-
       this.slots.push({
         item: {
           ...item,
@@ -105,11 +116,6 @@ export default class StashSystem {
 
   public getSlots():
     StashSlot[] {
-    /*
-     * Return copy supaya data asli
-     * tidak bisa diubah dari luar.
-     */
-
     return this.slots.map(
       (slot) => ({
         item: {
@@ -119,6 +125,51 @@ export default class StashSystem {
         quantity:
           slot.quantity,
       })
+    );
+  }
+
+  /*
+   * =========================================
+   * GET SINGLE ITEM
+   * =========================================
+   */
+
+  public getItem(
+    itemId: string
+  ): LootItem | null {
+    const slot =
+      this.slots.find(
+        (stashSlot) =>
+          stashSlot.item.id ===
+          itemId
+      );
+
+    if (
+      !slot
+    ) {
+      return null;
+    }
+
+    return {
+      ...slot.item,
+    };
+  }
+
+  /*
+   * =========================================
+   * HAS ITEM
+   * =========================================
+   */
+
+  public hasItem(
+    itemId: string
+  ): boolean {
+    return this.slots.some(
+      (slot) =>
+        slot.item.id ===
+        itemId &&
+        slot.quantity >
+        0
     );
   }
 
@@ -176,12 +227,144 @@ export default class StashSystem {
 
   /*
    * =========================================
+   * EQUIP ITEM
+   * =========================================
+   */
+
+  public equipItem(
+    itemId: string
+  ): boolean {
+    const item =
+      this.getItem(
+        itemId
+      );
+
+    if (
+      !item
+    ) {
+      return false;
+    }
+
+    /*
+     * Material tidak bisa dipakai
+     * sebagai equipment.
+     */
+
+    if (
+      item.type ===
+      "material"
+    ) {
+      return false;
+    }
+
+    /*
+     * Equip weapon.
+     */
+
+    if (
+      item.type ===
+      "weapon"
+    ) {
+      this.loadout.weapon = {
+        ...item,
+      };
+
+      this.saveLoadout();
+
+      return true;
+    }
+
+    /*
+     * Equip armor.
+     */
+
+    if (
+      item.type ===
+      "armor"
+    ) {
+      this.loadout.armor = {
+        ...item,
+      };
+
+      this.saveLoadout();
+
+      return true;
+    }
+
+    return false;
+  }
+
+  /*
+   * =========================================
+   * UNEQUIP WEAPON
+   * =========================================
+   */
+
+  public unequipWeapon() {
+    this.loadout.weapon =
+      null;
+
+    this.saveLoadout();
+  }
+
+  /*
+   * =========================================
+   * UNEQUIP ARMOR
+   * =========================================
+   */
+
+  public unequipArmor() {
+    this.loadout.armor =
+      null;
+
+    this.saveLoadout();
+  }
+
+  /*
+   * =========================================
+   * GET LOADOUT
+   * =========================================
+   */
+
+  public getLoadout():
+    PlayerLoadout {
+    return {
+      weapon:
+        this.loadout.weapon
+          ? {
+              ...this.loadout.weapon,
+            }
+          : null,
+
+      armor:
+        this.loadout.armor
+          ? {
+              ...this.loadout.armor,
+            }
+          : null,
+    };
+  }
+
+  /*
+   * =========================================
+   * IS ITEM EQUIPPED
+   * =========================================
+   */
+
+  public isEquipped(
+    itemId: string
+  ): boolean {
+    return (
+      this.loadout.weapon?.id ===
+        itemId ||
+      this.loadout.armor?.id ===
+        itemId
+    );
+  }
+
+  /*
+   * =========================================
    * REMOVE ITEM
-   *
-   * Nanti dipakai buat:
-   * - jual ke market
-   * - crafting
-   * - upgrade
    * =========================================
    */
 
@@ -219,18 +402,39 @@ export default class StashSystem {
       quantity;
 
     /*
-     * Kalau quantity habis,
-     * hapus slot.
+     * Kalau item habis,
+     * hapus juga dari loadout.
      */
 
     if (
       slot.quantity <=
       0
     ) {
+      const removedItemId =
+        slot.item.id;
+
       this.slots.splice(
         slotIndex,
         1
       );
+
+      if (
+        this.loadout.weapon?.id ===
+        removedItemId
+      ) {
+        this.loadout.weapon =
+          null;
+      }
+
+      if (
+        this.loadout.armor?.id ===
+        removedItemId
+      ) {
+        this.loadout.armor =
+          null;
+      }
+
+      this.saveLoadout();
     }
 
     this.save();
@@ -241,8 +445,6 @@ export default class StashSystem {
   /*
    * =========================================
    * CLEAR STASH
-   *
-   * Berguna untuk testing.
    * =========================================
    */
 
@@ -250,21 +452,23 @@ export default class StashSystem {
     this.slots =
       [];
 
+    this.loadout = {
+      weapon: null,
+      armor: null,
+    };
+
     this.save();
+
+    this.saveLoadout();
   }
 
   /*
    * =========================================
-   * SAVE
+   * SAVE STASH
    * =========================================
    */
 
   private save() {
-    /*
-     * Next.js bisa render di server.
-     * Jadi pastikan window tersedia.
-     */
-
     if (
       typeof window ===
       "undefined"
@@ -297,7 +501,7 @@ export default class StashSystem {
 
   /*
    * =========================================
-   * LOAD
+   * LOAD STASH
    * =========================================
    */
 
@@ -314,10 +518,6 @@ export default class StashSystem {
         window.localStorage.getItem(
           this.storageKey
         );
-
-      /*
-       * Belum pernah punya stash.
-       */
 
       if (
         !savedData
@@ -344,15 +544,13 @@ export default class StashSystem {
         return;
       }
 
-      /*
-       * Validasi sederhana.
-       */
-
       this.slots =
         parsed.slots.filter(
           (slot) =>
             slot &&
             slot.item &&
+            typeof slot.item.id ===
+              "string" &&
             typeof slot.quantity ===
               "number" &&
             slot.quantity >
@@ -368,6 +566,134 @@ export default class StashSystem {
 
       this.slots =
         [];
+    }
+  }
+
+  /*
+   * =========================================
+   * SAVE LOADOUT
+   * =========================================
+   */
+
+  private saveLoadout() {
+    if (
+      typeof window ===
+      "undefined"
+    ) {
+      return;
+    }
+
+    try {
+      const data:
+        SavedLoadoutData = {
+        weapon:
+          this.loadout.weapon,
+
+        armor:
+          this.loadout.armor,
+      };
+
+      window.localStorage.setItem(
+        this.loadoutStorageKey,
+        JSON.stringify(
+          data
+        )
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        "Failed to save loadout:",
+        error
+      );
+    }
+  }
+
+  /*
+   * =========================================
+   * LOAD LOADOUT
+   * =========================================
+   */
+
+  private loadLoadout() {
+    if (
+      typeof window ===
+      "undefined"
+    ) {
+      return;
+    }
+
+    try {
+      const savedData =
+        window.localStorage.getItem(
+          this.loadoutStorageKey
+        );
+
+      if (
+        !savedData
+      ) {
+        return;
+      }
+
+      const parsed =
+        JSON.parse(
+          savedData
+        ) as SavedLoadoutData;
+
+      /*
+       * Weapon hanya dipulihkan kalau
+       * item masih ada di stash.
+       */
+
+      if (
+        parsed.weapon &&
+        parsed.weapon.type ===
+          "weapon" &&
+        this.hasItem(
+          parsed.weapon.id
+        )
+      ) {
+        this.loadout.weapon = {
+          ...parsed.weapon,
+        };
+      }
+
+      /*
+       * Armor hanya dipulihkan kalau
+       * item masih ada di stash.
+       */
+
+      if (
+        parsed.armor &&
+        parsed.armor.type ===
+          "armor" &&
+        this.hasItem(
+          parsed.armor.id
+        )
+      ) {
+        this.loadout.armor = {
+          ...parsed.armor,
+        };
+      }
+
+      /*
+       * Bersihkan data lama kalau
+       * equipment sudah tidak ada.
+       */
+
+      this.saveLoadout();
+    } catch (
+      error
+    ) {
+      console.error(
+        "Failed to load loadout:",
+        error
+      );
+
+      this.loadout = {
+        weapon: null,
+        armor: null,
+      };
     }
   }
 }
