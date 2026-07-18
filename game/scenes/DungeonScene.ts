@@ -17,7 +17,9 @@ import InventoryUI from "@/game/inventory/InventoryUI";
 
 import ExtractionSystem from "@/game/extraction/ExtractionSystem";
 
-import StashSystem from "@/game/stash/StashSystem";
+import StashSystem, {
+  PlayerLoadout,
+} from "@/game/stash/StashSystem";
 
 export default class DungeonScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
@@ -38,6 +40,15 @@ export default class DungeonScene extends Phaser.Scene {
 
   private stash!: StashSystem;
 
+  private loadout: PlayerLoadout = {
+    weapon: null,
+    armor: null,
+  };
+
+  private playerDamage = 1;
+
+  private enemyDamage = 10;
+
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
 
   private wasd!: {
@@ -52,6 +63,8 @@ export default class DungeonScene extends Phaser.Scene {
   private hpText!: Phaser.GameObjects.Text;
 
   private enemyText!: Phaser.GameObjects.Text;
+
+  private equipmentText!: Phaser.GameObjects.Text;
 
   private playerHP = 100;
 
@@ -92,26 +105,26 @@ export default class DungeonScene extends Phaser.Scene {
     false;
 
   constructor() {
-    super(
-      "DungeonScene"
-    );
+    super("DungeonScene");
   }
 
   create() {
     /*
      * =========================================
-     * RESET RUN STATE
+     * RESET RUN
      * =========================================
      */
 
-    this.runFinished =
-      false;
+    this.runFinished = false;
 
     this.playerHP =
       this.maxPlayerHP;
 
-    this.enemyAIs =
-      [];
+    this.playerDamage = 1;
+
+    this.enemyDamage = 10;
+
+    this.enemyAIs = [];
 
     /*
      * =========================================
@@ -165,18 +178,21 @@ export default class DungeonScene extends Phaser.Scene {
      */
 
     this.inventory =
-      new InventorySystem(
-        8
-      );
+      new InventorySystem(8);
 
     /*
      * =========================================
-     * PERMANENT STASH
+     * STASH + LOADOUT
      * =========================================
      */
 
     this.stash =
       new StashSystem();
+
+    this.loadout =
+      this.stash.getLoadout();
+
+    this.applyLoadoutStats();
 
     /*
      * =========================================
@@ -185,9 +201,7 @@ export default class DungeonScene extends Phaser.Scene {
      */
 
     this.lootSystem =
-      new LootSystem(
-        this
-      );
+      new LootSystem(this);
 
     /*
      * =========================================
@@ -235,20 +249,16 @@ export default class DungeonScene extends Phaser.Scene {
 
     this.extractionSystem =
       new ExtractionSystem({
-        scene:
-          this,
+        scene: this,
 
         player:
           this.player,
 
-        x:
-          2200,
+        x: 2200,
 
-        y:
-          1350,
+        y: 1350,
 
-        radius:
-          100,
+        radius: 100,
 
         extractionTime:
           2500,
@@ -368,6 +378,53 @@ export default class DungeonScene extends Phaser.Scene {
 
   /*
    * =========================================
+   * LOADOUT STATS
+   * =========================================
+   */
+
+  private applyLoadoutStats() {
+    /*
+     * Base damage:
+     *
+     * Player = 1
+     * Enemy = 10
+     */
+
+    this.playerDamage = 1;
+
+    this.enemyDamage = 10;
+
+    /*
+     * Untuk sekarang semua weapon
+     * memberikan 2 damage.
+     *
+     * Nanti setiap weapon bisa punya
+     * stat damage sendiri.
+     */
+
+    if (
+      this.loadout.weapon
+    ) {
+      this.playerDamage = 2;
+    }
+
+    /*
+     * Untuk sekarang semua armor
+     * mengurangi damage 40%.
+     *
+     * Enemy damage:
+     * 10 -> 6
+     */
+
+    if (
+      this.loadout.armor
+    ) {
+      this.enemyDamage = 6;
+    }
+  }
+
+  /*
+   * =========================================
    * NAVIGATION
    * =========================================
    */
@@ -387,8 +444,7 @@ export default class DungeonScene extends Phaser.Scene {
                 this.columns,
             },
 
-            () =>
-              true
+            () => true
           )
       );
 
@@ -405,8 +461,7 @@ export default class DungeonScene extends Phaser.Scene {
 
       this.blockTile(
         col,
-        this.rows -
-          1
+        this.rows - 1
       );
     }
 
@@ -422,8 +477,7 @@ export default class DungeonScene extends Phaser.Scene {
       );
 
       this.blockTile(
-        this.columns -
-          1,
+        this.columns - 1,
         row
       );
     }
@@ -434,24 +488,17 @@ export default class DungeonScene extends Phaser.Scene {
     row: number
   ) {
     if (
-      row <
-        0 ||
-      row >=
-        this.rows ||
-      col <
-        0 ||
-      col >=
-        this.columns
+      row < 0 ||
+      row >= this.rows ||
+      col < 0 ||
+      col >= this.columns
     ) {
       return;
     }
 
     this.navigationGrid[
       row
-    ][
-      col
-    ] =
-      false;
+    ][col] = false;
   }
 
   private worldToGrid = (
@@ -468,8 +515,7 @@ export default class DungeonScene extends Phaser.Scene {
 
           0,
 
-          this.columns -
-            1
+          this.columns - 1
         ),
 
       row:
@@ -481,8 +527,7 @@ export default class DungeonScene extends Phaser.Scene {
 
           0,
 
-          this.rows -
-            1
+          this.rows - 1
         ),
     };
   };
@@ -494,14 +539,12 @@ export default class DungeonScene extends Phaser.Scene {
       x:
         point.col *
           this.tileSize +
-        this.tileSize /
-          2,
+        this.tileSize / 2,
 
       y:
         point.row *
           this.tileSize +
-        this.tileSize /
-          2,
+        this.tileSize / 2,
     };
   };
 
@@ -512,10 +555,6 @@ export default class DungeonScene extends Phaser.Scene {
    */
 
   private createTextures() {
-    /*
-     * PLAYER
-     */
-
     if (
       !this.textures.exists(
         "player"
@@ -555,10 +594,6 @@ export default class DungeonScene extends Phaser.Scene {
 
       graphics.destroy();
     }
-
-    /*
-     * WALL
-     */
 
     if (
       !this.textures.exists(
@@ -613,10 +648,6 @@ export default class DungeonScene extends Phaser.Scene {
 
       graphics.destroy();
     }
-
-    /*
-     * ENEMY
-     */
 
     if (
       !this.textures.exists(
@@ -705,10 +736,6 @@ export default class DungeonScene extends Phaser.Scene {
     this.walls =
       this.physics.add.staticGroup();
 
-    /*
-     * OUTER WALLS
-     */
-
     for (
       let col = 0;
       col <
@@ -722,16 +749,14 @@ export default class DungeonScene extends Phaser.Scene {
 
       this.createWallTile(
         col,
-        this.rows -
-          1
+        this.rows - 1
       );
     }
 
     for (
       let row = 1;
       row <
-      this.rows -
-        1;
+      this.rows - 1;
       row++
     ) {
       this.createWallTile(
@@ -740,15 +765,10 @@ export default class DungeonScene extends Phaser.Scene {
       );
 
       this.createWallTile(
-        this.columns -
-          1,
+        this.columns - 1,
         row
       );
     }
-
-    /*
-     * INTERNAL WALLS
-     */
 
     this.createHorizontalWall(
       6,
@@ -797,10 +817,6 @@ export default class DungeonScene extends Phaser.Scene {
       18,
       5
     );
-
-    /*
-     * TORCHES
-     */
 
     this.createTorch(
       420,
@@ -897,14 +913,12 @@ export default class DungeonScene extends Phaser.Scene {
     const x =
       col *
         this.tileSize +
-      this.tileSize /
-        2;
+      this.tileSize / 2;
 
     const y =
       row *
         this.tileSize +
-      this.tileSize /
-        2;
+      this.tileSize / 2;
 
     this.walls.create(
       x,
@@ -925,13 +939,11 @@ export default class DungeonScene extends Phaser.Scene {
   ) {
     for (
       let i = 0;
-      i <
-      amount;
+      i < amount;
       i++
     ) {
       this.createWallTile(
-        startCol +
-          i,
+        startCol + i,
         row
       );
     }
@@ -944,14 +956,12 @@ export default class DungeonScene extends Phaser.Scene {
   ) {
     for (
       let i = 0;
-      i <
-      amount;
+      i < amount;
       i++
     ) {
       this.createWallTile(
         col,
-        startRow +
-          i
+        startRow + i
       );
     }
   }
@@ -979,55 +989,38 @@ export default class DungeonScene extends Phaser.Scene {
       );
 
     this.tweens.add({
-      targets:
-        glow,
+      targets: glow,
 
       alpha: {
-        from:
-          0.04,
-
-        to:
-          0.18,
+        from: 0.04,
+        to: 0.18,
       },
 
       scale: {
-        from:
-          0.8,
-
-        to:
-          1.2,
+        from: 0.8,
+        to: 1.2,
       },
 
-      duration:
-        800,
+      duration: 800,
 
-      yoyo:
-        true,
+      yoyo: true,
 
-      repeat:
-        -1,
+      repeat: -1,
     });
 
     this.tweens.add({
-      targets:
-        fire,
+      targets: fire,
 
       scale: {
-        from:
-          0.8,
-
-        to:
-          1.15,
+        from: 0.8,
+        to: 1.15,
       },
 
-      duration:
-        400,
+      duration: 400,
 
-      yoyo:
-        true,
+      yoyo: true,
 
-      repeat:
-        -1,
+      repeat: -1,
     });
   }
 
@@ -1074,8 +1067,7 @@ export default class DungeonScene extends Phaser.Scene {
     this.enemies =
       this.physics.add.group();
 
-    this.enemyAIs =
-      [];
+    this.enemyAIs = [];
 
     const enemyPositions = [
       {
@@ -1141,8 +1133,7 @@ export default class DungeonScene extends Phaser.Scene {
 
         const enemyAI =
           new EnemyAI({
-            scene:
-              this,
+            scene: this,
 
             enemy,
 
@@ -1158,8 +1149,7 @@ export default class DungeonScene extends Phaser.Scene {
             gridToWorld:
               this.gridToWorld,
 
-            speed:
-              105,
+            speed: 105,
 
             aggroRadius:
               250,
@@ -1175,8 +1165,7 @@ export default class DungeonScene extends Phaser.Scene {
           });
 
         enemy.nextPathUpdate =
-          index *
-          80;
+          index * 80;
 
         this.enemyAIs.push(
           enemyAI
@@ -1288,12 +1277,8 @@ export default class DungeonScene extends Phaser.Scene {
             "bold",
         }
       )
-      .setScrollFactor(
-        0
-      )
-      .setDepth(
-        100
-      );
+      .setScrollFactor(0)
+      .setDepth(100);
 
     this.hpText =
       this.add
@@ -1315,12 +1300,8 @@ export default class DungeonScene extends Phaser.Scene {
               "bold",
           }
         )
-        .setScrollFactor(
-          0
-        )
-        .setDepth(
-          100
-        );
+        .setScrollFactor(0)
+        .setDepth(100);
 
     this.enemyText =
       this.add
@@ -1339,17 +1320,36 @@ export default class DungeonScene extends Phaser.Scene {
               "#d0d6da",
           }
         )
-        .setScrollFactor(
-          0
+        .setScrollFactor(0)
+        .setDepth(100);
+
+    this.equipmentText =
+      this.add
+        .text(
+          24,
+          116,
+          "",
+          {
+            fontFamily:
+              "Arial",
+
+            fontSize:
+              "13px",
+
+            color:
+              "#65f5df",
+
+            lineSpacing:
+              5,
+          }
         )
-        .setDepth(
-          100
-        );
+        .setScrollFactor(0)
+        .setDepth(100);
 
     this.add
       .text(
         24,
-        116,
+        162,
 
         "WASD: Move | SPACE: Attack | E: Extract",
 
@@ -1364,12 +1364,8 @@ export default class DungeonScene extends Phaser.Scene {
             "#89959c",
         }
       )
-      .setScrollFactor(
-        0
-      )
-      .setDepth(
-        100
-      );
+      .setScrollFactor(0)
+      .setDepth(100);
 
     this.updateUI();
   }
@@ -1395,6 +1391,27 @@ export default class DungeonScene extends Phaser.Scene {
     }
 
     if (
+      this.equipmentText
+    ) {
+      const weaponName =
+        this.loadout.weapon
+          ?.name ??
+        "None";
+
+      const armorName =
+        this.loadout.armor
+          ?.name ??
+        "None";
+
+      this.equipmentText.setText(
+        [
+          `Weapon: ${weaponName}  •  DMG: ${this.playerDamage}`,
+          `Armor: ${armorName}  •  Enemy DMG: ${this.enemyDamage}`,
+        ]
+      );
+    }
+
+    if (
       this.inventoryUI
     ) {
       this.inventoryUI.update();
@@ -1403,7 +1420,7 @@ export default class DungeonScene extends Phaser.Scene {
 
   /*
    * =========================================
-   * PLAYER MOVEMENT
+   * MOVEMENT
    * =========================================
    */
 
@@ -1416,42 +1433,36 @@ export default class DungeonScene extends Phaser.Scene {
       return;
     }
 
-    let velocityX =
-      0;
+    let velocityX = 0;
 
-    let velocityY =
-      0;
+    let velocityY = 0;
 
     if (
       this.cursors.left.isDown ||
       this.wasd.A.isDown
     ) {
-      velocityX =
-        -1;
+      velocityX = -1;
     }
 
     if (
       this.cursors.right.isDown ||
       this.wasd.D.isDown
     ) {
-      velocityX =
-        1;
+      velocityX = 1;
     }
 
     if (
       this.cursors.up.isDown ||
       this.wasd.W.isDown
     ) {
-      velocityY =
-        -1;
+      velocityY = -1;
     }
 
     if (
       this.cursors.down.isDown ||
       this.wasd.S.isDown
     ) {
-      velocityY =
-        1;
+      velocityY = 1;
     }
 
     const direction =
@@ -1511,19 +1522,25 @@ export default class DungeonScene extends Phaser.Scene {
     this.lastDamageTime =
       currentTime;
 
+    /*
+     * Armor sekarang berpengaruh.
+     */
+
     this.playerHP -=
-      10;
+      this.enemyDamage;
 
     if (
-      this.playerHP <
-      0
+      this.playerHP < 0
     ) {
-      this.playerHP =
-        0;
+      this.playerHP = 0;
     }
 
     this.player.setTint(
       0xff0000
+    );
+
+    this.showDamageNumber(
+      this.enemyDamage
     );
 
     this.time.delayedCall(
@@ -1552,9 +1569,7 @@ export default class DungeonScene extends Phaser.Scene {
     ) {
       knockback
         .normalize()
-        .scale(
-          220
-        );
+        .scale(220);
 
       this.player.setVelocity(
         knockback.x,
@@ -1570,6 +1585,61 @@ export default class DungeonScene extends Phaser.Scene {
     ) {
       this.gameOver();
     }
+  }
+
+  /*
+   * =========================================
+   * DAMAGE NUMBER
+   * =========================================
+   */
+
+  private showDamageNumber(
+    damage: number
+  ) {
+    const text =
+      this.add
+        .text(
+          this.player.x,
+          this.player.y - 35,
+          `-${damage}`,
+          {
+            fontFamily:
+              "Arial",
+
+            fontSize:
+              "18px",
+
+            color:
+              "#ff6677",
+
+            fontStyle:
+              "bold",
+
+            stroke:
+              "#000000",
+
+            strokeThickness:
+              4,
+          }
+        )
+        .setOrigin(0.5)
+        .setDepth(150);
+
+    this.tweens.add({
+      targets: text,
+
+      y:
+        text.y - 30,
+
+      alpha: 0,
+
+      duration: 700,
+
+      onComplete:
+        () => {
+          text.destroy();
+        },
+    });
   }
 
   /*
@@ -1592,12 +1662,24 @@ export default class DungeonScene extends Phaser.Scene {
     this.lastAttackTime =
       time;
 
+    const hasWeapon =
+      Boolean(
+        this.loadout.weapon
+      );
+
     const attackEffect =
       this.add.circle(
         this.player.x,
         this.player.y,
-        70,
-        0xd9a84e,
+
+        hasWeapon
+          ? 78
+          : 70,
+
+        hasWeapon
+          ? 0x65f5df
+          : 0xd9a84e,
+
         0.18
       );
 
@@ -1607,7 +1689,11 @@ export default class DungeonScene extends Phaser.Scene {
 
     attackEffect.setStrokeStyle(
       4,
-      0xf5dfaa,
+
+      hasWeapon
+        ? 0x9ffff0
+        : 0xf5dfaa,
+
       0.8
     );
 
@@ -1615,14 +1701,11 @@ export default class DungeonScene extends Phaser.Scene {
       targets:
         attackEffect,
 
-      scale:
-        1.35,
+      scale: 1.35,
 
-      alpha:
-        0,
+      alpha: 0,
 
-      duration:
-        180,
+      duration: 180,
 
       onComplete:
         () => {
@@ -1631,9 +1714,7 @@ export default class DungeonScene extends Phaser.Scene {
     });
 
     this.enemies.children.each(
-      (
-        child
-      ) => {
+      (child) => {
         const enemy =
           child as EnemySprite;
 
@@ -1653,7 +1734,11 @@ export default class DungeonScene extends Phaser.Scene {
 
         if (
           distance <=
-          85
+          (
+            hasWeapon
+              ? 95
+              : 85
+          )
         ) {
           this.damageEnemy(
             enemy
@@ -1673,13 +1758,22 @@ export default class DungeonScene extends Phaser.Scene {
         "hp"
       ) as number;
 
+    /*
+     * Weapon sekarang berpengaruh.
+     */
+
     const newHP =
       currentHP -
-      1;
+      this.playerDamage;
 
     enemy.setData(
       "hp",
       newHP
+    );
+
+    this.showEnemyDamageNumber(
+      enemy,
+      this.playerDamage
     );
 
     enemy.setTint(
@@ -1709,13 +1803,64 @@ export default class DungeonScene extends Phaser.Scene {
     }
 
     if (
-      newHP <=
-      0
+      newHP <= 0
     ) {
       this.killEnemy(
         enemy
       );
     }
+  }
+
+  private showEnemyDamageNumber(
+    enemy: EnemySprite,
+    damage: number
+  ) {
+    const text =
+      this.add
+        .text(
+          enemy.x,
+          enemy.y - 35,
+
+          `-${damage}`,
+
+          {
+            fontFamily:
+              "Arial",
+
+            fontSize:
+              "16px",
+
+            color:
+              "#ffffff",
+
+            fontStyle:
+              "bold",
+
+            stroke:
+              "#000000",
+
+            strokeThickness:
+              4,
+          }
+        )
+        .setOrigin(0.5)
+        .setDepth(150);
+
+    this.tweens.add({
+      targets: text,
+
+      y:
+        text.y - 25,
+
+      alpha: 0,
+
+      duration: 600,
+
+      onComplete:
+        () => {
+          text.destroy();
+        },
+    });
   }
 
   /*
@@ -1750,14 +1895,11 @@ export default class DungeonScene extends Phaser.Scene {
       targets:
         deathEffect,
 
-      scale:
-        2,
+      scale: 2,
 
-      alpha:
-        0,
+      alpha: 0,
 
-      duration:
-        300,
+      duration: 300,
 
       onComplete:
         () => {
@@ -1854,9 +1996,7 @@ export default class DungeonScene extends Phaser.Scene {
       this.add
         .text(
           this.player.x,
-
-          this.player.y -
-            50,
+          this.player.y - 50,
 
           "INVENTORY FULL",
 
@@ -1880,26 +2020,18 @@ export default class DungeonScene extends Phaser.Scene {
               4,
           }
         )
-        .setOrigin(
-          0.5
-        )
-        .setDepth(
-          100
-        );
+        .setOrigin(0.5)
+        .setDepth(100);
 
     this.tweens.add({
-      targets:
-        text,
+      targets: text,
 
       y:
-        text.y -
-        30,
+        text.y - 30,
 
-      alpha:
-        0,
+      alpha: 0,
 
-      duration:
-        900,
+      duration: 900,
 
       onComplete:
         () => {
@@ -1959,8 +2091,7 @@ export default class DungeonScene extends Phaser.Scene {
         .text(
           this.player.x,
 
-          this.player.y -
-            45,
+          this.player.y - 45,
 
           `+ ${itemName}`,
 
@@ -1983,26 +2114,18 @@ export default class DungeonScene extends Phaser.Scene {
               4,
           }
         )
-        .setOrigin(
-          0.5
-        )
-        .setDepth(
-          100
-        );
+        .setOrigin(0.5)
+        .setDepth(100);
 
     this.tweens.add({
-      targets:
-        text,
+      targets: text,
 
       y:
-        text.y -
-        35,
+        text.y - 35,
 
-      alpha:
-        0,
+      alpha: 0,
 
-      duration:
-        1000,
+      duration: 1000,
 
       ease:
         "Power2",
@@ -2016,7 +2139,7 @@ export default class DungeonScene extends Phaser.Scene {
 
   /*
    * =========================================
-   * EXTRACTION SUCCESS
+   * EXTRACTION
    * =========================================
    */
 
@@ -2030,23 +2153,13 @@ export default class DungeonScene extends Phaser.Scene {
     this.runFinished =
       true;
 
-    /*
-     * Stop player.
-     */
-
     this.player.setVelocity(
       0,
       0
     );
 
-    /*
-     * Stop enemies.
-     */
-
     this.enemies.children.each(
-      (
-        child
-      ) => {
+      (child) => {
         const enemy =
           child as EnemySprite;
 
@@ -2063,12 +2176,6 @@ export default class DungeonScene extends Phaser.Scene {
       }
     );
 
-    /*
-     * =========================================
-     * SNAPSHOT RUN INVENTORY
-     * =========================================
-     */
-
     const extractedSlots =
       this.inventory.getSlots();
 
@@ -2078,29 +2185,13 @@ export default class DungeonScene extends Phaser.Scene {
     const totalItems =
       this.inventory.getTotalItemCount();
 
-    /*
-     * =========================================
-     * MOVE LOOT TO PERMANENT STASH
-     * =========================================
-     */
-
     this.stash.addSlots(
       extractedSlots
     );
 
-    /*
-     * Inventory run sekarang kosong.
-     */
-
     this.inventory.clear();
 
     this.inventoryUI.update();
-
-    /*
-     * =========================================
-     * STASH DATA
-     * =========================================
-     */
 
     const stashItems =
       this.stash.getTotalItemCount();
@@ -2108,47 +2199,24 @@ export default class DungeonScene extends Phaser.Scene {
     const stashValue =
       this.stash.getTotalValue();
 
-    /*
-     * =========================================
-     * RESULT SCREEN
-     * =========================================
-     */
-
     const camera =
       this.cameras.main;
 
     this.add
       .rectangle(
-        camera.width /
-          2,
-
-        camera.height /
-          2,
-
+        camera.width / 2,
+        camera.height / 2,
         camera.width,
-
         camera.height,
-
         0x050809,
-
         0.94
       )
-      .setScrollFactor(
-        0
-      )
-      .setDepth(
-        2000
-      );
-
-    /*
-     * TITLE
-     */
+      .setScrollFactor(0)
+      .setDepth(2000);
 
     this.add
       .text(
-        camera.width /
-          2,
-
+        camera.width / 2,
         80,
 
         "EXTRACTION SUCCESS",
@@ -2173,25 +2241,13 @@ export default class DungeonScene extends Phaser.Scene {
             6,
         }
       )
-      .setOrigin(
-        0.5
-      )
-      .setScrollFactor(
-        0
-      )
-      .setDepth(
-        2001
-      );
-
-    /*
-     * RUN SUMMARY
-     */
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(2001);
 
     this.add
       .text(
-        camera.width /
-          2,
-
+        camera.width / 2,
         140,
 
         `${totalItems} items secured  •  Run Value: ${totalValue}`,
@@ -2207,19 +2263,9 @@ export default class DungeonScene extends Phaser.Scene {
             "#ffd166",
         }
       )
-      .setOrigin(
-        0.5
-      )
-      .setScrollFactor(
-        0
-      )
-      .setDepth(
-        2001
-      );
-
-    /*
-     * RESULT LINES
-     */
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(2001);
 
     const resultLines:
       string[] = [];
@@ -2238,8 +2284,7 @@ export default class DungeonScene extends Phaser.Scene {
           index
         ) => {
           const quantityText =
-            slot.quantity >
-            1
+            slot.quantity > 1
               ? ` x${slot.quantity}`
               : "";
 
@@ -2256,9 +2301,7 @@ export default class DungeonScene extends Phaser.Scene {
 
     this.add
       .text(
-        camera.width /
-          2,
-
+        camera.width / 2,
         205,
 
         resultLines.join(
@@ -2286,33 +2329,19 @@ export default class DungeonScene extends Phaser.Scene {
         0.5,
         0
       )
-      .setScrollFactor(
-        0
-      )
-      .setDepth(
-        2001
-      );
-
-    /*
-     * =========================================
-     * STASH SUMMARY
-     * =========================================
-     */
+      .setScrollFactor(0)
+      .setDepth(2001);
 
     this.add
       .rectangle(
-        camera.width /
-          2,
+        camera.width / 2,
 
-        camera.height -
-          190,
+        camera.height - 190,
 
         420,
-
         70,
 
         0x11181c,
-
         1
       )
       .setStrokeStyle(
@@ -2320,20 +2349,14 @@ export default class DungeonScene extends Phaser.Scene {
         0x344047,
         1
       )
-      .setScrollFactor(
-        0
-      )
-      .setDepth(
-        2001
-      );
+      .setScrollFactor(0)
+      .setDepth(2001);
 
     this.add
       .text(
-        camera.width /
-          2,
+        camera.width / 2,
 
-        camera.height -
-          190,
+        camera.height - 190,
 
         `PERMANENT STASH\n${stashItems} items  •  Total Value: ${stashValue}`,
 
@@ -2354,45 +2377,25 @@ export default class DungeonScene extends Phaser.Scene {
             7,
         }
       )
-      .setOrigin(
-        0.5
-      )
-      .setScrollFactor(
-        0
-      )
-      .setDepth(
-        2002
-      );
-
-    /*
-     * =========================================
-     * RETURN TO BASE BUTTON
-     * =========================================
-     */
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(2002);
 
     const button =
       this.add
         .rectangle(
-          camera.width /
-            2,
+          camera.width / 2,
 
-          camera.height -
-            90,
+          camera.height - 90,
 
           230,
-
           52,
 
           0xd9a84e,
-
           1
         )
-        .setScrollFactor(
-          0
-        )
-        .setDepth(
-          2001
-        )
+        .setScrollFactor(0)
+        .setDepth(2001)
         .setInteractive({
           useHandCursor:
             true,
@@ -2401,11 +2404,9 @@ export default class DungeonScene extends Phaser.Scene {
     const buttonText =
       this.add
         .text(
-          camera.width /
-            2,
+          camera.width / 2,
 
-          camera.height -
-            90,
+          camera.height - 90,
 
           "RETURN TO BASE",
 
@@ -2423,19 +2424,12 @@ export default class DungeonScene extends Phaser.Scene {
               "bold",
           }
         )
-        .setOrigin(
-          0.5
-        )
-        .setScrollFactor(
-          0
-        )
-        .setDepth(
-          2002
-        );
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(2002);
 
     button.on(
       "pointerover",
-
       () => {
         button.setScale(
           1.04
@@ -2449,7 +2443,6 @@ export default class DungeonScene extends Phaser.Scene {
 
     button.on(
       "pointerout",
-
       () => {
         button.setScale(
           1
@@ -2461,15 +2454,14 @@ export default class DungeonScene extends Phaser.Scene {
       }
     );
 
-   button.on(
-  "pointerdown",
-
-  () => {
-    this.scene.start(
-      "BaseScene"
+    button.on(
+      "pointerdown",
+      () => {
+        this.scene.start(
+          "BaseScene"
+        );
+      }
     );
-  }
-);
   }
 
   /*
@@ -2494,12 +2486,6 @@ export default class DungeonScene extends Phaser.Scene {
       0x555555
     );
 
-    /*
-     * Loot run hilang.
-     *
-     * Permanent stash TIDAK disentuh.
-     */
-
     this.inventory.clear();
 
     this.inventoryUI.update();
@@ -2511,34 +2497,20 @@ export default class DungeonScene extends Phaser.Scene {
 
     this.add
       .rectangle(
-        camera.width /
-          2,
-
-        camera.height /
-          2,
-
+        camera.width / 2,
+        camera.height / 2,
         camera.width,
-
         camera.height,
-
         0x050809,
-
         0.75
       )
-      .setScrollFactor(
-        0
-      )
-      .setDepth(
-        2999
-      );
+      .setScrollFactor(0)
+      .setDepth(2999);
 
     this.add
       .text(
-        camera.width /
-          2,
-
-        camera.height /
-          2,
+        camera.width / 2,
+        camera.height / 2,
 
         "YOU DIED\nRUN LOOT LOST",
 
@@ -2565,14 +2537,8 @@ export default class DungeonScene extends Phaser.Scene {
             8,
         }
       )
-      .setOrigin(
-        0.5
-      )
-      .setScrollFactor(
-        0
-      )
-      .setDepth(
-        3000
-      );
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(3000);
   }
 }
