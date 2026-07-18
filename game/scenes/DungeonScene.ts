@@ -2461,23 +2461,15 @@ export default class DungeonScene extends Phaser.Scene {
       }
     );
 
-    button.on(
-      "pointerdown",
+   button.on(
+  "pointerdown",
 
-      () => {
-        /*
-         * Untuk sekarang restart dungeon.
-         *
-         * Stash tidak hilang karena
-         * disimpan di localStorage.
-         *
-         * Next ini akan diarahkan ke
-         * BaseScene asli.
-         */
-
-        this.scene.restart();
-      }
+  () => {
+    this.scene.start(
+      "BaseScene"
     );
+  }
+);
   }
 
   /*
