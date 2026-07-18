@@ -7,14 +7,35 @@ import StashSystem, {
 export default class BaseScene extends Phaser.Scene {
   private stash!: StashSystem;
 
-  private readonly slotSize = 70;
+  private selectedSlot:
+    StashSlot | null =
+    null;
 
-  private readonly slotGap = 12;
+  private stashContainer!:
+    Phaser.GameObjects.Container;
 
-  private readonly columns = 6;
+  private detailContainer!:
+    Phaser.GameObjects.Container;
+
+  private loadoutContainer!:
+    Phaser.GameObjects.Container;
+
+  private headerStatsText!:
+    Phaser.GameObjects.Text;
+
+  private readonly slotSize =
+    70;
+
+  private readonly slotGap =
+    12;
+
+  private readonly columns =
+    6;
 
   constructor() {
-    super("BaseScene");
+    super(
+      "BaseScene"
+    );
   }
 
   create() {
@@ -45,7 +66,7 @@ export default class BaseScene extends Phaser.Scene {
 
     /*
      * =========================================
-     * STASH PANEL
+     * STASH
      * =========================================
      */
 
@@ -53,7 +74,23 @@ export default class BaseScene extends Phaser.Scene {
 
     /*
      * =========================================
-     * ENTER DUNGEON
+     * ITEM DETAIL
+     * =========================================
+     */
+
+    this.createDetailPanel();
+
+    /*
+     * =========================================
+     * LOADOUT
+     * =========================================
+     */
+
+    this.createLoadoutPanel();
+
+    /*
+     * =========================================
+     * DUNGEON
      * =========================================
      */
 
@@ -74,10 +111,6 @@ export default class BaseScene extends Phaser.Scene {
       "#080c0f"
     );
 
-    /*
-     * Main background.
-     */
-
     this.add.rectangle(
       camera.width / 2,
       camera.height / 2,
@@ -86,10 +119,6 @@ export default class BaseScene extends Phaser.Scene {
       0x080c0f,
       1
     );
-
-    /*
-     * Decorative grid.
-     */
 
     const graphics =
       this.add.graphics();
@@ -129,16 +158,18 @@ export default class BaseScene extends Phaser.Scene {
       );
     }
 
-    /*
-     * Glow dekorasi.
-     */
-
     const glow =
       this.add.circle(
-        camera.width * 0.78,
-        camera.height * 0.3,
+        camera.width *
+          0.78,
+
+        camera.height *
+          0.3,
+
         260,
+
         0xd9a84e,
+
         0.035
       );
 
@@ -183,10 +214,6 @@ export default class BaseScene extends Phaser.Scene {
     const camera =
       this.cameras.main;
 
-    /*
-     * Header background.
-     */
-
     this.add.rectangle(
       camera.width / 2,
       45,
@@ -196,10 +223,6 @@ export default class BaseScene extends Phaser.Scene {
       0.96
     );
 
-    /*
-     * Bottom border.
-     */
-
     this.add.rectangle(
       camera.width / 2,
       89,
@@ -208,10 +231,6 @@ export default class BaseScene extends Phaser.Scene {
       0x344047,
       1
     );
-
-    /*
-     * Logo.
-     */
 
     this.add.text(
       30,
@@ -251,38 +270,45 @@ export default class BaseScene extends Phaser.Scene {
       }
     );
 
-    /*
-     * Stash summary header.
-     */
+    this.headerStatsText =
+      this.add
+        .text(
+          camera.width -
+            30,
 
+          27,
+
+          "",
+
+          {
+            fontFamily:
+              "Arial",
+
+            fontSize:
+              "15px",
+
+            color:
+              "#d0d6da",
+          }
+        )
+        .setOrigin(
+          1,
+          0
+        );
+
+    this.updateHeader();
+  }
+
+  private updateHeader() {
     const totalItems =
       this.stash.getTotalItemCount();
 
     const totalValue =
       this.stash.getTotalValue();
 
-    this.add
-      .text(
-        camera.width - 30,
-        27,
-
-        `STASH: ${totalItems} ITEMS   •   VALUE: ${totalValue}`,
-
-        {
-          fontFamily:
-            "Arial",
-
-          fontSize:
-            "15px",
-
-          color:
-            "#d0d6da",
-        }
-      )
-      .setOrigin(
-        1,
-        0
-      );
+    this.headerStatsText.setText(
+      `STASH: ${totalItems} ITEMS   •   VALUE: ${totalValue}`
+    );
   }
 
   /*
@@ -292,9 +318,6 @@ export default class BaseScene extends Phaser.Scene {
    */
 
   private createStashPanel() {
-    const camera =
-      this.cameras.main;
-
     const panelX =
       40;
 
@@ -302,20 +325,10 @@ export default class BaseScene extends Phaser.Scene {
       125;
 
     const panelWidth =
-      Math.min(
-        600,
-        camera.width - 80
-      );
+      600;
 
     const panelHeight =
-      Math.min(
-        540,
-        camera.height - 165
-      );
-
-    /*
-     * Panel background.
-     */
+      540;
 
     this.add
       .rectangle(
@@ -339,16 +352,10 @@ export default class BaseScene extends Phaser.Scene {
         1
       );
 
-    /*
-     * Title.
-     */
-
     this.add.text(
       panelX + 25,
       panelY + 22,
-
       "PERMANENT STASH",
-
       {
         fontFamily:
           "Arial",
@@ -367,9 +374,7 @@ export default class BaseScene extends Phaser.Scene {
     this.add.text(
       panelX + 25,
       panelY + 53,
-
-      "Loot successfully extracted from the dungeon.",
-
+      "Click equipment to inspect or equip it.",
       {
         fontFamily:
           "Arial",
@@ -382,19 +387,13 @@ export default class BaseScene extends Phaser.Scene {
       }
     );
 
-    /*
-     * Divider.
-     */
-
     this.add.rectangle(
       panelX +
         panelWidth / 2,
 
-      panelY +
-        85,
+      panelY + 85,
 
-      panelWidth -
-        50,
+      panelWidth - 50,
 
       1,
 
@@ -403,9 +402,25 @@ export default class BaseScene extends Phaser.Scene {
       1
     );
 
-    /*
-     * Render stash.
-     */
+    this.stashContainer =
+      this.add.container(
+        0,
+        0
+      );
+
+    this.renderStash();
+  }
+
+  /*
+   * =========================================
+   * RENDER STASH
+   * =========================================
+   */
+
+  private renderStash() {
+    this.stashContainer.removeAll(
+      true
+    );
 
     const slots =
       this.stash.getSlots();
@@ -414,11 +429,59 @@ export default class BaseScene extends Phaser.Scene {
       slots.length ===
       0
     ) {
-      this.createEmptyStash(
-        panelX,
-        panelY,
-        panelWidth
-      );
+      const title =
+        this.add
+          .text(
+            340,
+            375,
+
+            "YOUR STASH IS EMPTY",
+
+            {
+              fontFamily:
+                "Arial",
+
+              fontSize:
+                "20px",
+
+              color:
+                "#56636a",
+
+              fontStyle:
+                "bold",
+            }
+          )
+          .setOrigin(
+            0.5
+          );
+
+      const subtitle =
+        this.add
+          .text(
+            340,
+            410,
+
+            "Enter the dungeon and extract loot safely.",
+
+            {
+              fontFamily:
+                "Arial",
+
+              fontSize:
+                "13px",
+
+              color:
+                "#465158",
+            }
+          )
+          .setOrigin(
+            0.5
+          );
+
+      this.stashContainer.add([
+        title,
+        subtitle,
+      ]);
 
       return;
     }
@@ -430,77 +493,10 @@ export default class BaseScene extends Phaser.Scene {
       ) => {
         this.createStashSlot(
           slot,
-          index,
-          panelX + 25,
-          panelY + 110
+          index
         );
       }
     );
-  }
-
-  /*
-   * =========================================
-   * EMPTY STASH
-   * =========================================
-   */
-
-  private createEmptyStash(
-    panelX: number,
-    panelY: number,
-    panelWidth: number
-  ) {
-    this.add
-      .text(
-        panelX +
-          panelWidth / 2,
-
-        panelY +
-          250,
-
-        "YOUR STASH IS EMPTY",
-
-        {
-          fontFamily:
-            "Arial",
-
-          fontSize:
-            "20px",
-
-          color:
-            "#56636a",
-
-          fontStyle:
-            "bold",
-        }
-      )
-      .setOrigin(
-        0.5
-      );
-
-    this.add
-      .text(
-        panelX +
-          panelWidth / 2,
-
-        panelY +
-          285,
-
-        "Enter the dungeon, collect loot and extract safely.",
-
-        {
-          fontFamily:
-            "Arial",
-
-          fontSize:
-            "13px",
-
-          color:
-            "#465158",
-        }
-      )
-      .setOrigin(
-        0.5
-      );
   }
 
   /*
@@ -511,10 +507,14 @@ export default class BaseScene extends Phaser.Scene {
 
   private createStashSlot(
     slot: StashSlot,
-    index: number,
-    startX: number,
-    startY: number
+    index: number
   ) {
+    const startX =
+      65;
+
+    const startY =
+      235;
+
     const column =
       index %
       this.columns;
@@ -541,97 +541,107 @@ export default class BaseScene extends Phaser.Scene {
           this.slotGap
         );
 
+    const centerX =
+      x +
+      this.slotSize /
+        2;
+
+    const centerY =
+      y +
+      this.slotSize /
+        2;
+
     const rarityColor =
       this.getRarityColor(
         slot.item.rarity
       );
 
+    const isEquipped =
+      this.stash.isEquipped(
+        slot.item.id
+      );
+
     /*
-     * Slot background.
+     * SLOT BACKGROUND
      */
 
     const background =
       this.add.rectangle(
-        x +
-          this.slotSize / 2,
-
-        y +
-          this.slotSize / 2,
+        centerX,
+        centerY,
 
         this.slotSize,
-
         this.slotSize,
 
-        0x11181c,
+        isEquipped
+          ? 0x243127
+          : 0x11181c,
 
         1
       );
 
     background.setStrokeStyle(
-      3,
-      rarityColor,
+      isEquipped
+        ? 4
+        : 3,
+
+      isEquipped
+        ? 0x65f5df
+        : rarityColor,
+
       1
     );
 
-    /*
-     * Rarity inner glow.
-     */
-
-    this.add.rectangle(
-      x +
-        this.slotSize / 2,
-
-      y +
-        this.slotSize / 2,
-
-      this.slotSize - 8,
-
-      this.slotSize - 8,
-
-      rarityColor,
-
-      0.08
-    );
+    background.setInteractive({
+      useHandCursor:
+        true,
+    });
 
     /*
-     * Item icon.
+     * INNER GLOW
      */
 
-    this.createItemIcon(
-      slot,
-      x +
-        this.slotSize / 2,
+    const glow =
+      this.add.rectangle(
+        centerX,
+        centerY,
 
-      y +
-        this.slotSize / 2
-    );
+        this.slotSize - 8,
+        this.slotSize - 8,
+
+        rarityColor,
+
+        0.08
+      );
 
     /*
-     * Quantity.
+     * ITEM ICON
      */
+
+    const icon =
+      this.createItemIcon(
+        slot,
+        centerX,
+        centerY
+      );
+
+    /*
+     * QUANTITY
+     */
+
+    const objects:
+      Phaser.GameObjects.GameObject[] = [
+      background,
+      glow,
+      ...icon,
+    ];
 
     if (
       slot.quantity >
       1
     ) {
-      this.add.circle(
-        x +
-          this.slotSize -
-          11,
-
-        y +
-          this.slotSize -
-          11,
-
-        11,
-
-        0x000000,
-
-        0.9
-      );
-
-      this.add
-        .text(
+      const quantityCircle =
+        this.add.circle(
           x +
             this.slotSize -
             11,
@@ -640,97 +650,158 @@ export default class BaseScene extends Phaser.Scene {
             this.slotSize -
             11,
 
-          `${slot.quantity}`,
+          11,
 
-          {
-            fontFamily:
-              "Arial",
+          0x000000,
 
-            fontSize:
-              "11px",
-
-            color:
-              "#ffffff",
-
-            fontStyle:
-              "bold",
-          }
-        )
-        .setOrigin(
-          0.5
+          0.9
         );
+
+      const quantityText =
+        this.add
+          .text(
+            x +
+              this.slotSize -
+              11,
+
+            y +
+              this.slotSize -
+              11,
+
+            `${slot.quantity}`,
+
+            {
+              fontFamily:
+                "Arial",
+
+              fontSize:
+                "11px",
+
+              color:
+                "#ffffff",
+
+              fontStyle:
+                "bold",
+            }
+          )
+          .setOrigin(
+            0.5
+          );
+
+      objects.push(
+        quantityCircle,
+        quantityText
+      );
     }
 
     /*
-     * Rarity dot.
+     * EQUIPPED BADGE
      */
 
-    this.add.circle(
-      x + 9,
-      y +
-        this.slotSize -
-        9,
+    if (
+      isEquipped
+    ) {
+      const equippedText =
+        this.add
+          .text(
+            centerX,
+            y - 7,
 
-      4,
+            "EQUIPPED",
 
-      rarityColor,
+            {
+              fontFamily:
+                "Arial",
 
-      1
+              fontSize:
+                "9px",
+
+              color:
+                "#65f5df",
+
+              fontStyle:
+                "bold",
+
+              backgroundColor:
+                "#0b1515",
+
+              padding: {
+                x: 5,
+                y: 2,
+              },
+            }
+          )
+          .setOrigin(
+            0.5
+          );
+
+      objects.push(
+        equippedText
+      );
+    }
+
+    /*
+     * RARITY DOT
+     */
+
+    const rarityDot =
+      this.add.circle(
+        x + 9,
+
+        y +
+          this.slotSize -
+          9,
+
+        4,
+
+        rarityColor,
+
+        1
+      );
+
+    objects.push(
+      rarityDot
+    );
+
+    this.stashContainer.add(
+      objects
     );
 
     /*
-     * Tooltip.
+     * CLICK
      */
 
-    background.setInteractive({
-      useHandCursor:
-        true,
-    });
+    background.on(
+      "pointerdown",
+      () => {
+        this.selectedSlot = {
+          item: {
+            ...slot.item,
+          },
 
-    let tooltip:
-      Phaser.GameObjects.Container |
-      null =
-      null;
+          quantity:
+            slot.quantity,
+        };
+
+        this.renderDetailPanel();
+      }
+    );
 
     background.on(
       "pointerover",
-
       () => {
         background.setScale(
           1.05
         );
-
-        tooltip =
-          this.createTooltip(
-            slot,
-
-            x +
-              this.slotSize +
-              10,
-
-            y
-          );
       }
     );
 
     background.on(
       "pointerout",
-
       () => {
         background.setScale(
           1
         );
-
-        if (
-          tooltip
-        ) {
-          tooltip.destroy(
-            true
-          );
-
-          tooltip =
-            null;
-        }
       }
     );
   }
@@ -745,13 +816,9 @@ export default class BaseScene extends Phaser.Scene {
     slot: StashSlot,
     x: number,
     y: number
-  ) {
+  ): Phaser.GameObjects.GameObject[] {
     const graphics =
       this.add.graphics();
-
-    /*
-     * WEAPON
-     */
 
     if (
       slot.item.type ===
@@ -783,12 +850,10 @@ export default class BaseScene extends Phaser.Scene {
         y + 14
       );
 
-      return;
+      return [
+        graphics,
+      ];
     }
-
-    /*
-     * ARMOR
-     */
 
     if (
       slot.item.type ===
@@ -840,12 +905,10 @@ export default class BaseScene extends Phaser.Scene {
 
       graphics.fillPath();
 
-      return;
+      return [
+        graphics,
+      ];
     }
-
-    /*
-     * MATERIAL
-     */
 
     graphics.fillStyle(
       0xc9d3d9,
@@ -882,65 +945,160 @@ export default class BaseScene extends Phaser.Scene {
     graphics.closePath();
 
     graphics.fillPath();
+
+    return [
+      graphics,
+    ];
   }
 
   /*
    * =========================================
-   * TOOLTIP
+   * DETAIL PANEL
    * =========================================
    */
 
-  private createTooltip(
-    slot: StashSlot,
-    x: number,
-    y: number
-  ) {
-    const container =
+  private createDetailPanel() {
+    this.detailContainer =
       this.add.container(
-        x,
-        y
+        0,
+        0
       );
 
-    container.setDepth(
-      1000
+    this.renderDetailPanel();
+  }
+
+  private renderDetailPanel() {
+    this.detailContainer.removeAll(
+      true
     );
+
+    const x =
+      690;
+
+    const y =
+      125;
+
+    const width =
+      360;
+
+    const height =
+      300;
+
+    const background =
+      this.add
+        .rectangle(
+          x +
+            width / 2,
+
+          y +
+            height / 2,
+
+          width,
+
+          height,
+
+          0x0d1317,
+
+          0.96
+        )
+        .setStrokeStyle(
+          2,
+          0x344047,
+          1
+        );
+
+    this.detailContainer.add(
+      background
+    );
+
+    const title =
+      this.add.text(
+        x + 25,
+        y + 22,
+
+        "ITEM DETAILS",
+
+        {
+          fontFamily:
+            "Arial",
+
+          fontSize:
+            "20px",
+
+          color:
+            "#d9a84e",
+
+          fontStyle:
+            "bold",
+        }
+      );
+
+    this.detailContainer.add(
+      title
+    );
+
+    if (
+      !this.selectedSlot
+    ) {
+      const emptyText =
+        this.add
+          .text(
+            x +
+              width / 2,
+
+            y + 155,
+
+            "Select an item\nfrom your stash.",
+
+            {
+              fontFamily:
+                "Arial",
+
+              fontSize:
+                "16px",
+
+              color:
+                "#56636a",
+
+              align:
+                "center",
+
+              lineSpacing:
+                8,
+            }
+          )
+          .setOrigin(
+            0.5
+          );
+
+      this.detailContainer.add(
+        emptyText
+      );
+
+      return;
+    }
+
+    const slot =
+      this.selectedSlot;
 
     const rarityColor =
       this.getRarityColor(
         slot.item.rarity
       );
 
-    const background =
-      this.add.rectangle(
-        100,
-        65,
-        200,
-        130,
-        0x050809,
-        0.98
-      );
-
-    background.setStrokeStyle(
-      2,
-      rarityColor,
-      1
-    );
-
-    container.add(
-      background
-    );
-
-    const nameText =
+    const itemName =
       this.add.text(
-        15,
-        14,
+        x + 25,
+        y + 70,
+
         slot.item.name,
+
         {
           fontFamily:
             "Arial",
 
           fontSize:
-            "16px",
+            "23px",
 
           color:
             this.numberToColor(
@@ -952,85 +1110,529 @@ export default class BaseScene extends Phaser.Scene {
         }
       );
 
-    container.add(
-      nameText
+    this.detailContainer.add(
+      itemName
     );
 
-    const rarityText =
+    const info =
       this.add.text(
-        15,
-        42,
+        x + 25,
+        y + 110,
 
-        slot.item.rarity.toUpperCase(),
+        [
+          `Rarity: ${slot.item.rarity.toUpperCase()}`,
+          `Type: ${slot.item.type.toUpperCase()}`,
+          `Quantity: ${slot.quantity}`,
+          `Value: ${slot.item.value}`,
+        ].join(
+          "\n"
+        ),
 
         {
           fontFamily:
             "Arial",
 
           fontSize:
-            "11px",
+            "14px",
 
           color:
-            "#89959c",
+            "#b7c0c7",
+
+          lineSpacing:
+            8,
         }
       );
 
-    container.add(
-      rarityText
+    this.detailContainer.add(
+      info
     );
 
-    const quantityText =
-      this.add.text(
-        15,
-        70,
+    /*
+     * MATERIAL
+     */
 
-        `Quantity: ${slot.quantity}`,
+    if (
+      slot.item.type ===
+      "material"
+    ) {
+      const materialText =
+        this.add.text(
+          x + 25,
+          y + 245,
 
-        {
-          fontFamily:
-            "Arial",
+          "CRAFTING MATERIAL",
 
-          fontSize:
-            "13px",
+          {
+            fontFamily:
+              "Arial",
 
-          color:
-            "#d0d6da",
+            fontSize:
+              "13px",
+
+            color:
+              "#89959c",
+
+            fontStyle:
+              "bold",
+          }
+        );
+
+      this.detailContainer.add(
+        materialText
+      );
+
+      return;
+    }
+
+    /*
+     * EQUIP BUTTON
+     */
+
+    const isEquipped =
+      this.stash.isEquipped(
+        slot.item.id
+      );
+
+    const button =
+      this.add
+        .rectangle(
+          x +
+            width / 2,
+
+          y + 255,
+
+          220,
+
+          48,
+
+          isEquipped
+            ? 0x25363a
+            : 0xd9a84e,
+
+          1
+        )
+        .setInteractive({
+          useHandCursor:
+            true,
+        });
+
+    const buttonText =
+      this.add
+        .text(
+          x +
+            width / 2,
+
+          y + 255,
+
+          isEquipped
+            ? "EQUIPPED"
+            : "EQUIP ITEM",
+
+          {
+            fontFamily:
+              "Arial",
+
+            fontSize:
+              "15px",
+
+            color:
+              isEquipped
+                ? "#65f5df"
+                : "#080c0f",
+
+            fontStyle:
+              "bold",
+          }
+        )
+        .setOrigin(
+          0.5
+        );
+
+    this.detailContainer.add([
+      button,
+      buttonText,
+    ]);
+
+    if (
+      !isEquipped
+    ) {
+      button.on(
+        "pointerdown",
+        () => {
+          const success =
+            this.stash.equipItem(
+              slot.item.id
+            );
+
+          if (
+            !success
+          ) {
+            return;
+          }
+
+          this.renderStash();
+
+          this.renderDetailPanel();
+
+          this.renderLoadoutPanel();
         }
       );
 
-    container.add(
-      quantityText
-    );
+      button.on(
+        "pointerover",
+        () => {
+          button.setScale(
+            1.03
+          );
 
-    const valueText =
-      this.add.text(
-        15,
-        95,
-
-        `Value: ${slot.item.value * slot.quantity}`,
-
-        {
-          fontFamily:
-            "Arial",
-
-          fontSize:
-            "13px",
-
-          color:
-            "#ffd166",
+          buttonText.setScale(
+            1.03
+          );
         }
       );
 
-    container.add(
-      valueText
-    );
+      button.on(
+        "pointerout",
+        () => {
+          button.setScale(
+            1
+          );
 
-    return container;
+          buttonText.setScale(
+            1
+          );
+        }
+      );
+    }
   }
 
   /*
    * =========================================
-   * ENTER DUNGEON BUTTON
+   * LOADOUT PANEL
+   * =========================================
+   */
+
+  private createLoadoutPanel() {
+    this.loadoutContainer =
+      this.add.container(
+        0,
+        0
+      );
+
+    this.renderLoadoutPanel();
+  }
+
+  private renderLoadoutPanel() {
+    this.loadoutContainer.removeAll(
+      true
+    );
+
+    const x =
+      690;
+
+    const y =
+      455;
+
+    const width =
+      360;
+
+    const height =
+      210;
+
+    const background =
+      this.add
+        .rectangle(
+          x +
+            width / 2,
+
+          y +
+            height / 2,
+
+          width,
+
+          height,
+
+          0x0d1317,
+
+          0.96
+        )
+        .setStrokeStyle(
+          2,
+          0x344047,
+          1
+        );
+
+    this.loadoutContainer.add(
+      background
+    );
+
+    const title =
+      this.add.text(
+        x + 25,
+        y + 20,
+
+        "CURRENT LOADOUT",
+
+        {
+          fontFamily:
+            "Arial",
+
+          fontSize:
+            "19px",
+
+          color:
+            "#d9a84e",
+
+          fontStyle:
+            "bold",
+        }
+      );
+
+    this.loadoutContainer.add(
+      title
+    );
+
+    const loadout =
+      this.stash.getLoadout();
+
+    this.createLoadoutSlot(
+      "WEAPON",
+
+      loadout.weapon,
+
+      x + 25,
+
+      y + 65
+    );
+
+    this.createLoadoutSlot(
+      "ARMOR",
+
+      loadout.armor,
+
+      x + 185,
+
+      y + 65
+    );
+  }
+
+  /*
+   * =========================================
+   * LOADOUT SLOT
+   * =========================================
+   */
+
+  private createLoadoutSlot(
+    label: string,
+
+    item:
+      StashSlot["item"] |
+      null,
+
+    x: number,
+    y: number
+  ) {
+    const background =
+      this.add
+        .rectangle(
+          x + 70,
+
+          y + 55,
+
+          140,
+
+          110,
+
+          0x11181c,
+
+          1
+        )
+        .setStrokeStyle(
+          2,
+
+          item
+            ? this.getRarityColor(
+                item.rarity
+              )
+            : 0x344047,
+
+          1
+        );
+
+    this.loadoutContainer.add(
+      background
+    );
+
+    const labelText =
+      this.add
+        .text(
+          x + 70,
+
+          y + 15,
+
+          label,
+
+          {
+            fontFamily:
+              "Arial",
+
+            fontSize:
+              "11px",
+
+            color:
+              "#89959c",
+
+            fontStyle:
+              "bold",
+          }
+        )
+        .setOrigin(
+          0.5
+        );
+
+    this.loadoutContainer.add(
+      labelText
+    );
+
+    if (
+      !item
+    ) {
+      const empty =
+        this.add
+          .text(
+            x + 70,
+
+            y + 65,
+
+            "EMPTY",
+
+            {
+              fontFamily:
+                "Arial",
+
+              fontSize:
+                "13px",
+
+              color:
+                "#56636a",
+
+              fontStyle:
+                "bold",
+            }
+          )
+          .setOrigin(
+            0.5
+          );
+
+      this.loadoutContainer.add(
+        empty
+      );
+
+      return;
+    }
+
+    const itemName =
+      this.add
+        .text(
+          x + 70,
+
+          y + 60,
+
+          item.name,
+
+          {
+            fontFamily:
+              "Arial",
+
+            fontSize:
+              "13px",
+
+            color:
+              this.numberToColor(
+                this.getRarityColor(
+                  item.rarity
+                )
+              ),
+
+            fontStyle:
+              "bold",
+
+            align:
+              "center",
+
+            wordWrap: {
+              width:
+                120,
+            },
+          }
+        )
+        .setOrigin(
+          0.5
+        );
+
+    this.loadoutContainer.add(
+      itemName
+    );
+
+    const removeButton =
+      this.add
+        .text(
+          x + 70,
+
+          y + 92,
+
+          "UNEQUIP",
+
+          {
+            fontFamily:
+              "Arial",
+
+            fontSize:
+              "10px",
+
+            color:
+              "#ff7888",
+
+            fontStyle:
+              "bold",
+          }
+        )
+        .setOrigin(
+          0.5
+        )
+        .setInteractive({
+          useHandCursor:
+            true,
+        });
+
+    this.loadoutContainer.add(
+      removeButton
+    );
+
+    removeButton.on(
+      "pointerdown",
+      () => {
+        if (
+          label ===
+          "WEAPON"
+        ) {
+          this.stash.unequipWeapon();
+        } else {
+          this.stash.unequipArmor();
+        }
+
+        this.renderStash();
+
+        this.renderDetailPanel();
+
+        this.renderLoadoutPanel();
+      }
+    );
+  }
+
+  /*
+   * =========================================
+   * DUNGEON BUTTON
    * =========================================
    */
 
@@ -1039,17 +1641,11 @@ export default class BaseScene extends Phaser.Scene {
       this.cameras.main;
 
     const x =
-      Math.max(
-        camera.width - 300,
-        750
-      );
+      1315;
 
     const y =
-      camera.height / 2;
-
-    /*
-     * Decorative portal.
-     */
+      camera.height /
+      2;
 
     const glow =
       this.add.circle(
@@ -1127,10 +1723,6 @@ export default class BaseScene extends Phaser.Scene {
         -1,
     });
 
-    /*
-     * Title.
-     */
-
     this.add
       .text(
         x,
@@ -1178,10 +1770,6 @@ export default class BaseScene extends Phaser.Scene {
         0.5
       );
 
-    /*
-     * Button.
-     */
-
     const button =
       this.add
         .rectangle(
@@ -1228,7 +1816,6 @@ export default class BaseScene extends Phaser.Scene {
 
     button.on(
       "pointerover",
-
       () => {
         button.setScale(
           1.04
@@ -1242,7 +1829,6 @@ export default class BaseScene extends Phaser.Scene {
 
     button.on(
       "pointerout",
-
       () => {
         button.setScale(
           1
@@ -1256,7 +1842,6 @@ export default class BaseScene extends Phaser.Scene {
 
     button.on(
       "pointerdown",
-
       () => {
         this.scene.start(
           "DungeonScene"
