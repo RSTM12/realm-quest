@@ -3,7 +3,7 @@ import * as Phaser from "phaser";
 import BaseScene from "@/game/scenes/BaseScene";
 import DungeonScene from "@/game/scenes/DungeonScene";
 
-const gameConfig: Phaser.Types.Core.GameConfig = {
+export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
 
   width: 1600,
@@ -29,8 +29,7 @@ const gameConfig: Phaser.Types.Core.GameConfig = {
   scale: {
     mode: Phaser.Scale.FIT,
 
-    autoCenter:
-      Phaser.Scale.CENTER_BOTH,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
 
     width: 1600,
     height: 900,
